@@ -37,9 +37,10 @@
             border-top:1px solid #444;
             display:flex;
             flex-direction:column;
+            transition:height 0.15s linear;
         }
         #editor-header {
-            padding:6px 8px;
+            padding:4px 8px;
             background:#333;
             color:#63b3ed;
             font-size:12px;
@@ -47,6 +48,15 @@
             justify-content:space-between;
             align-items:center;
             cursor:pointer;
+        }
+        #editor-title { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        #editor-toggle-arrow {
+            font-size:12px;
+            color:#ccc;
+            border:none;
+            background:transparent;
+            cursor:pointer;
+            padding:0 4px;
         }
         #editor {
             flex:1;
@@ -61,25 +71,30 @@
         #editor-container.minimized {
             height:22px;
         }
-        #toggle-editor {
-            font-size:11px;
-            color:#ccc;
-            border:none;
-            background:transparent;
-            cursor:pointer;
-        }
     </style>
 </head>
 <body>
     <div id="sidebar">
         <div class="section">
-            <h3>Algorithms</h3>
+            <h3>Array algorithms</h3>
             <button onclick="selectAlgo('bubble')"   id="btn-bubble">Bubble sort</button>
             <button onclick="selectAlgo('selection')"id="btn-selection">Selection sort</button>
             <button onclick="selectAlgo('insertion')"id="btn-insertion">Insertion sort</button>
             <button onclick="selectAlgo('linear')"   id="btn-linear">Linear search</button>
             <button onclick="selectAlgo('binary')"   id="btn-binary">Binary search</button>
-            <button onclick="selectAlgo('bfs')"      id="btn-bfs">BFS maze</button>
+        </div>
+
+        <div class="section">
+            <h3>Graph algorithms</h3>
+            <button onclick="selectAlgo('bfs')"      id="btn-bfs">BFS</button>
+            <button onclick="selectAlgo('dfs')"      id="btn-dfs">DFS</button>
+            <button onclick="selectAlgo('prims')"    id="btn-prims">Prim</button>
+            <button onclick="selectAlgo('kruskal')"  id="btn-kruskal">Kruskal</button>
+            <button onclick="selectAlgo('dijkstra')" id="btn-dijkstra">Dijkstra</button>
+        </div>
+
+        <div class="section">
+            <h3>Tree / DS</h3>
             <button onclick="selectAlgo('bst')"      id="btn-bst">BST insert</button>
         </div>
 
@@ -94,7 +109,7 @@
             <h3>Settings</h3>
             <label>Speed: <span id="speedVal">200</span> ms</label>
             <input type="range" id="speed" min="50" max="1000" value="200" oninput="updateSpeed(this.value)">
-            <label>Size (for array-based algos): <span id="sizeVal">60</span></label>
+            <label>Size (arrays only): <span id="sizeVal">60</span></label>
             <input type="range" id="size" min="10" max="120" value="60" oninput="updateSize(this.value)">
         </div>
 
@@ -105,29 +120,11 @@
         <canvas id="canvas"></canvas>
 
         <div id="editor-container">
-            <div id="editor-header">
-                <span>C base code (edit values, logic same)</span>
-                <button id="toggle-editor" type="button">minimize</button>
+            <div id="editor-header" onclick="toggleEditor()">
+                <span id="editor-title">C code: Bubble sort</span>
+                <button id="editor-toggle-arrow" type="button">▼</button>
             </div>
-            <textarea id="editor">
-#include <stdio.h>
-
-int main() {
-    int arr[] = {64, 34, 25, 12, 22, 11, 90};
-    int n = 7;
-
-    printf("Array: ");
-    for (int i = 0; i < n; i++) {
-        printf("%d ", arr[i]);
-    }
-    printf("\n");
-
-    /* Change arr[] values and n
-       to test different cases in C. */
-
-    return 0;
-}
-            </textarea>
+            <textarea id="editor"></textarea>
         </div>
     </div>
 
@@ -147,6 +144,7 @@ int main() {
         let isPlaying = false;
         let currentAlgoKey = 'bubble';
         let stats = { steps: 0, ops: 0 };
+        let currentAlgo = null;
 
         function resetStats() {
             stats = { steps: 0, ops: 0 };
@@ -158,9 +156,330 @@ int main() {
                 'Steps: ' + stats.steps + ' | Ops: ' + stats.ops + ' | Status: ' + status;
         }
 
-        /* Algorithm definitions */
+        /* C code templates, very basic, you can edit values */
+        const C_TEMPLATES = {
+"bubble": `#include <stdio.h>
+
+int main() {
+    int arr[] = {64, 34, 25, 12, 22, 11, 90};
+    int n = 7;
+    int i, j, temp;
+
+    for (i = 0; i < n-1; i++) {
+        for (j = 0; j < n-i-1; j++) {
+            if (arr[j] > arr[j+1]) {
+                temp = arr[j];
+                arr[j] = arr[j+1];
+                arr[j+1] = temp;
+            }
+        }
+    }
+
+    for (i = 0; i < n; i++) printf("%d ", arr[i]);
+    return 0;
+}
+`,
+"selection": `#include <stdio.h>
+
+int main() {
+    int arr[] = {64, 25, 12, 22, 11};
+    int n = 5;
+    int i, j, minIdx, temp;
+
+    for (i = 0; i < n-1; i++) {
+        minIdx = i;
+        for (j = i+1; j < n; j++) {
+            if (arr[j] < arr[minIdx]) minIdx = j;
+        }
+        temp = arr[i];
+        arr[i] = arr[minIdx];
+        arr[minIdx] = temp;
+    }
+
+    for (i = 0; i < n; i++) printf("%d ", arr[i]);
+    return 0;
+}
+`,
+"insertion": `#include <stdio.h>
+
+int main() {
+    int arr[] = {12, 11, 13, 5, 6};
+    int n = 5;
+    int i, j, key;
+
+    for (i = 1; i < n; i++) {
+        key = arr[i];
+        j = i - 1;
+        while (j >= 0 && arr[j] > key) {
+            arr[j+1] = arr[j];
+            j = j - 1;
+        }
+        arr[j+1] = key;
+    }
+
+    for (i = 0; i < n; i++) printf("%d ", arr[i]);
+    return 0;
+}
+`,
+"linear": `#include <stdio.h>
+
+int main() {
+    int arr[] = {5, 3, 8, 4, 2};
+    int n = 5;
+    int key = 4;
+    int i, found = -1;
+
+    for (i = 0; i < n; i++) {
+        if (arr[i] == key) {
+            found = i;
+            break;
+        }
+    }
+
+    if (found != -1) printf("Found at index %d\\n", found);
+    else printf("Not found\\n");
+    return 0;
+}
+`,
+"binary": `#include <stdio.h>
+
+int main() {
+    int arr[] = {2, 4, 5, 8, 12, 16};
+    int n = 6;
+    int key = 8;
+    int l = 0, r = n-1, mid, found = -1;
+
+    while (l <= r) {
+        mid = (l + r) / 2;
+        if (arr[mid] == key) { found = mid; break; }
+        else if (arr[mid] < key) l = mid + 1;
+        else r = mid - 1;
+    }
+
+    if (found != -1) printf("Found at index %d\\n", found);
+    else printf("Not found\\n");
+    return 0;
+}
+`,
+"bfs": `#include <stdio.h>
+
+int main() {
+    int n = 5;
+    int g[5][5] = {
+        {0,1,1,0,0},
+        {1,0,1,1,0},
+        {1,1,0,0,1},
+        {0,1,0,0,1},
+        {0,0,1,1,0}
+    };
+    int visited[5] = {0};
+    int q[10], front = 0, rear = 0;
+    int start = 0;
+    int u, v;
+
+    q[rear++] = start;
+    visited[start] = 1;
+
+    while (front < rear) {
+        u = q[front++];
+        printf("%d ", u);
+        for (v = 0; v < n; v++) {
+            if (g[u][v] && !visited[v]) {
+                visited[v] = 1;
+                q[rear++] = v;
+            }
+        }
+    }
+    return 0;
+}
+`,
+"dfs": `#include <stdio.h>
+
+void dfs(int u, int n, int g[][5], int visited[]) {
+    int v;
+    visited[u] = 1;
+    printf("%d ", u);
+    for (v = 0; v < n; v++) {
+        if (g[u][v] && !visited[v]) dfs(v, n, g, visited);
+    }
+}
+
+int main() {
+    int n = 5;
+    int g[5][5] = {
+        {0,1,1,0,0},
+        {1,0,1,1,0},
+        {1,1,0,0,1},
+        {0,1,0,0,1},
+        {0,0,1,1,0}
+    };
+    int visited[5] = {0};
+    dfs(0, n, g, visited);
+    return 0;
+}
+`,
+"prims": `#include <stdio.h>
+#define INF 99999
+
+int main() {
+    int n = 5;
+    int g[5][5] = {
+        {0,2,0,6,0},
+        {2,0,3,8,5},
+        {0,3,0,0,7},
+        {6,8,0,0,9},
+        {0,5,7,9,0}
+    };
+    int selected[5] = {0};
+    selected[0] = 1;
+    int edges = 0, i, j;
+
+    while (edges < n-1) {
+        int min = INF, x = 0, y = 0;
+        for (i = 0; i < n; i++) {
+            if (selected[i]) {
+                for (j = 0; j < n; j++) {
+                    if (!selected[j] && g[i][j]) {
+                        if (g[i][j] < min) {
+                            min = g[i][j];
+                            x = i; y = j;
+                        }
+                    }
+                }
+            }
+        }
+        printf("%d - %d (w=%d)\\n", x, y, g[x][y]);
+        selected[y] = 1;
+        edges++;
+    }
+    return 0;
+}
+`,
+"kruskal": `#include <stdio.h>
+#define INF 99999
+
+int parent[5];
+
+int find(int i) {
+    while (parent[i] != i) i = parent[i];
+    return i;
+}
+void uni(int i, int j) { parent[i] = j; }
+
+int main() {
+    int n = 5;
+    int g[5][5] = {
+        {0,2,0,6,0},
+        {2,0,3,8,5},
+        {0,3,0,0,7},
+        {6,8,0,0,9},
+        {0,5,7,9,0}
+    };
+    int edges = 0, i, j;
+
+    for (i = 0; i < n; i++) parent[i] = i;
+
+    while (edges < n-1) {
+        int min = INF, a = -1, b = -1;
+        for (i = 0; i < n; i++) {
+            for (j = 0; j < n; j++) {
+                if (g[i][j] && g[i][j] < min) {
+                    min = g[i][j]; a = i; b = j;
+                }
+            }
+        }
+        int u = find(a);
+        int v = find(b);
+        if (u != v) {
+            printf("%d - %d (w=%d)\\n", a, b, g[a][b]);
+            uni(u, v);
+            edges++;
+        }
+        g[a][b] = g[b][a] = 0;
+    }
+    return 0;
+}
+`,
+"dijkstra": `#include <stdio.h>
+#define INF 99999
+
+int main() {
+    int n = 5;
+    int g[5][5] = {
+        {0,10,0,5,0},
+        {10,0,1,2,0},
+        {0,1,0,0,4},
+        {5,2,0,0,3},
+        {0,0,4,3,0}
+    };
+    int dist[5], visited[5] = {0};
+    int i, j, u, v, min;
+
+    for (i = 0; i < n; i++) dist[i] = INF;
+    dist[0] = 0;
+
+    for (i = 0; i < n-1; i++) {
+        min = INF; u = -1;
+        for (j = 0; j < n; j++) {
+            if (!visited[j] && dist[j] < min) {
+                min = dist[j]; u = j;
+            }
+        }
+        if (u == -1) break;
+        visited[u] = 1;
+        for (v = 0; v < n; v++) {
+            if (g[u][v] && dist[u] + g[u][v] < dist[v]) {
+                dist[v] = dist[u] + g[u][v];
+            }
+        }
+    }
+
+    for (i = 0; i < n; i++)
+        printf("dist[0 -> %d] = %d\\n", i, dist[i]);
+    return 0;
+}
+`,
+"bst": `#include <stdio.h>
+#include <stdlib.h>
+
+struct Node {
+    int data;
+    struct Node *left, *right;
+};
+
+struct Node* newNode(int data) {
+    struct Node* n = (struct Node*)malloc(sizeof(struct Node));
+    n->data = data; n->left = n->right = NULL;
+    return n;
+}
+
+struct Node* insert(struct Node* root, int data) {
+    if (!root) return newNode(data);
+    if (data < root->data) root->left = insert(root->left, data);
+    else root->right = insert(root->right, data);
+    return root;
+}
+
+void inorder(struct Node* root) {
+    if (!root) return;
+    inorder(root->left);
+    printf("%d ", root->data);
+    inorder(root->right);
+}
+
+int main() {
+    int vals[] = {50, 30, 70, 20, 40, 60, 80};
+    int n = 7, i;
+    struct Node* root = NULL;
+    for (i = 0; i < n; i++) root = insert(root, vals[i]);
+    inorder(root);
+    return 0;
+}
+`
+        };
+
+        /* Visual algorithms (same small fixed graphs for BFS/DFS/Prim/Kruskal/Dijkstra) */
         const ALGORITHMS = {
-            /* Bubble sort */
             bubble: {
                 type: 'array',
                 init() {
@@ -184,10 +503,10 @@ int main() {
                         return;
                     }
                     stats.ops++;
-                    if (this.arr[this.j] > this.arr[this.j + 1]) {
+                    if (this.arr[this.j] > this.arr[this.j+1]) {
                         const t = this.arr[this.j];
-                        this.arr[this.j] = this.arr[this.j + 1];
-                        this.arr[this.j + 1] = t;
+                        this.arr[this.j] = this.arr[this.j+1];
+                        this.arr[this.j+1] = t;
                     }
                     this.j++;
                     stats.steps++;
@@ -196,7 +515,7 @@ int main() {
                     const w = canvas.width / this.arr.length;
                     for (let k = 0; k < this.arr.length; k++) {
                         let color = '#4fd0e3';
-                        if (k === this.j || k === this.j + 1) color = '#ff6b6b';
+                        if (k === this.j || k === this.j+1) color = '#ff6b6b';
                         if (k >= this.arr.length - this.i) color = '#26de81';
                         ctx.fillStyle = color;
                         ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
@@ -204,7 +523,6 @@ int main() {
                 }
             },
 
-            /* Selection sort */
             selection: {
                 type: 'array',
                 init() {
@@ -226,9 +544,7 @@ int main() {
                     }
                     if (this.j < n) {
                         stats.ops++;
-                        if (this.arr[this.j] < this.arr[this.minIdx]) {
-                            this.minIdx = this.j;
-                        }
+                        if (this.arr[this.j] < this.arr[this.minIdx]) this.minIdx = this.j;
                         this.j++;
                         stats.steps++;
                     } else {
@@ -252,7 +568,6 @@ int main() {
                 }
             },
 
-            /* Insertion sort */
             insertion: {
                 type: 'array',
                 init() {
@@ -271,10 +586,10 @@ int main() {
                         this.done = true;
                         return;
                     }
-                    if (this.j >= 0 && this.arr[this.j] > this.arr[this.j + 1]) {
+                    if (this.j >= 0 && this.arr[this.j] > this.arr[this.j+1]) {
                         const t = this.arr[this.j];
-                        this.arr[this.j] = this.arr[this.j + 1];
-                        this.arr[this.j + 1] = t;
+                        this.arr[this.j] = this.arr[this.j+1];
+                        this.arr[this.j+1] = t;
                         this.j--;
                         stats.ops++;
                         stats.steps++;
@@ -287,21 +602,20 @@ int main() {
                     const w = canvas.width / this.arr.length;
                     for (let k = 0; k < this.arr.length; k++) {
                         let color = k < this.i ? '#26de81' : '#4fd0e3';
-                        if (k === this.j || k === this.j + 1) color = '#ff6b6b';
+                        if (k === this.j || k === this.j+1) color = '#ff6b6b';
                         ctx.fillStyle = color;
                         ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
                     }
                 }
             },
 
-            /* Linear search */
             linear: {
                 type: 'array',
                 init() {
                     this.arr = Array(dataSize).fill(0).map(
                         () => Math.floor(Math.random() * 400) + 20
                     );
-                    this.key = this.arr[Math.floor(Math.random() * this.arr.length)];
+                    this.key = this.arr[Math.floor(Math.random()*this.arr.length)];
                     this.i = 0;
                     this.found = -1;
                     this.done = false;
@@ -309,10 +623,7 @@ int main() {
                 },
                 step() {
                     if (this.done) return;
-                    if (this.i >= this.arr.length) {
-                        this.done = true;
-                        return;
-                    }
+                    if (this.i >= this.arr.length) { this.done = true; return; }
                     stats.ops++;
                     if (this.arr[this.i] === this.key) {
                         this.found = this.i;
@@ -337,14 +648,13 @@ int main() {
                 }
             },
 
-            /* Binary search */
             binary: {
                 type: 'array',
                 init() {
                     this.arr = Array(dataSize).fill(0).map(
                         () => Math.floor(Math.random() * 400) + 20
-                    ).sort((a,b) => a-b);
-                    this.key = this.arr[Math.floor(Math.random() * this.arr.length)];
+                    ).sort((a,b)=>a-b);
+                    this.key = this.arr[Math.floor(Math.random()*this.arr.length)];
                     this.l = 0;
                     this.r = this.arr.length - 1;
                     this.mid = -1;
@@ -354,17 +664,14 @@ int main() {
                 },
                 step() {
                     if (this.done) return;
-                    if (this.l > this.r) {
-                        this.done = true;
-                        return;
-                    }
+                    if (this.l > this.r) { this.done = true; return; }
                     this.mid = Math.floor((this.l + this.r) / 2);
                     stats.ops++;
-                    const val = this.arr[this.mid];
-                    if (val === this.key) {
+                    const v = this.arr[this.mid];
+                    if (v === this.key) {
                         this.found = this.mid;
                         this.done = true;
-                    } else if (val < this.key) {
+                    } else if (v < this.key) {
                         this.l = this.mid + 1;
                     } else {
                         this.r = this.mid - 1;
@@ -388,185 +695,519 @@ int main() {
                 }
             },
 
-            /* BFS maze */
+            /* fixed small graph for BFS, DFS, Prim, Kruskal, Dijkstra */
             bfs: {
-                type: 'grid',
+                type: 'graph',
                 init() {
-                    this.rows = 20;
-                    this.cols = 40;
-                    this.grid = [];
-                    for (let y = 0; y < this.rows; y++) {
-                        const row = [];
-                        for (let x = 0; x < this.cols; x++) {
-                            row.push(0);
-                        }
-                        this.grid.push(row);
-                    }
-                    for (let y = 0; y < this.rows; y++) {
-                        for (let x = 0; x < this.cols; x++) {
-                            if (Math.random() < 0.22 && !(x === 1 && y === 1) && !(x === this.cols-2 && y === this.rows-2)) {
-                                this.grid[y][x] = 1;
-                            }
-                        }
-                    }
-                    this.start = { x:1, y:1 };
-                    this.goal  = { x:this.cols-2, y:this.rows-2 };
-                    this.queue = [ { x:this.start.x, y:this.start.y } ];
-                    this.visited = new Set([ this.start.x + ',' + this.start.y ]);
-                    this.dirs = [ [1,0], [-1,0], [0,1], [0,-1] ];
+                    this.buildGraph();
+                    this.resetVisit();
+                    this.queue = [0];
+                    this.vis[0] = true;
                     this.done = false;
                     resetStats();
                 },
+                buildGraph() {
+                    this.nodes = [
+                        {x: canvas.width*0.3, y: canvas.height*0.3},
+                        {x: canvas.width*0.6, y: canvas.height*0.3},
+                        {x: canvas.width*0.2, y: canvas.height*0.6},
+                        {x: canvas.width*0.5, y: canvas.height*0.6},
+                        {x: canvas.width*0.8, y: canvas.height*0.6}
+                    ];
+                    this.adj = [
+                        [1,2],
+                        [0,3],
+                        [0,3],
+                        [1,2,4],
+                        [3]
+                    ];
+                },
+                resetVisit() {
+                    this.vis = [false,false,false,false,false];
+                    this.order = [];
+                },
                 step() {
                     if (this.done) return;
-                    if (this.queue.length === 0) {
-                        this.done = true;
-                        return;
-                    }
-                    const cur = this.queue.shift();
-                    if (cur.x === this.goal.x && cur.y === this.goal.y) {
-                        this.done = true;
-                        return;
-                    }
-                    for (const d of this.dirs) {
-                        const nx = cur.x + d[0];
-                        const ny = cur.y + d[1];
-                        if (nx < 0 || ny < 0 || nx >= this.cols || ny >= this.rows) continue;
-                        if (this.grid[ny][nx] === 1) continue;
-                        const key = nx + ',' + ny;
-                        if (this.visited.has(key)) continue;
-                        this.visited.add(key);
-                        this.queue.push({ x:nx, y:ny });
+                    if (this.queue.length === 0) { this.done = true; return; }
+                    const u = this.queue.shift();
+                    this.order.push(u);
+                    for (const v of this.adj[u]) {
+                        if (!this.vis[v]) {
+                            this.vis[v] = true;
+                            this.queue.push(v);
+                        }
                     }
                     stats.steps++;
                 },
                 draw() {
-                    const cw = canvas.width / this.cols;
-                    const ch = canvas.height / this.rows;
-                    for (let y = 0; y < this.rows; y++) {
-                        for (let x = 0; x < this.cols; x++) {
-                            const key = x + ',' + y;
-                            if (this.grid[y][x] === 1) {
-                                ctx.fillStyle = '#222';
-                            } else if (this.visited.has(key)) {
-                                ctx.fillStyle = '#4fd0e3';
-                            } else {
-                                ctx.fillStyle = '#111';
+                    ctx.clearRect(0,0,canvas.width,canvas.height);
+                    ctx.strokeStyle = '#555';
+                    ctx.lineWidth = 2;
+                    for (let u = 0; u < this.nodes.length; u++) {
+                        for (const v of this.adj[u]) {
+                            if (v > u) {
+                                const a = this.nodes[u], b = this.nodes[v];
+                                ctx.beginPath();
+                                ctx.moveTo(a.x, a.y);
+                                ctx.lineTo(b.x, b.y);
+                                ctx.stroke();
                             }
-                            ctx.fillRect(x*cw, y*ch, cw, ch);
                         }
                     }
-                    ctx.fillStyle = '#26de81';
-                    ctx.fillRect(this.start.x*cw, this.start.y*ch, cw, ch);
-                    ctx.fillStyle = '#ff6b6b';
-                    ctx.fillRect(this.goal.x*cw, this.goal.y*ch, cw, ch);
+                    for (let i = 0; i < this.nodes.length; i++) {
+                        const n = this.nodes[i];
+                        let color = '#4fd0e3';
+                        if (this.order.includes(i)) color = '#26de81';
+                        ctx.beginPath();
+                        ctx.arc(n.x, n.y, 18, 0, Math.PI*2);
+                        ctx.fillStyle = color;
+                        ctx.fill();
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                        ctx.fillStyle = '#000';
+                        ctx.font = '12px monospace';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(String(i), n.x, n.y);
+                    }
                 }
             },
 
-            /* BST insert */
+            dfs: {
+                type: 'graph',
+                init() {
+                    this.buildGraph();
+                    this.vis = [false,false,false,false,false];
+                    this.stack = [0];
+                    this.order = [];
+                    this.done = false;
+                    resetStats();
+                },
+                buildGraph() {
+                    this.nodes = [
+                        {x: canvas.width*0.3, y: canvas.height*0.3},
+                        {x: canvas.width*0.6, y: canvas.height*0.3},
+                        {x: canvas.width*0.2, y: canvas.height*0.6},
+                        {x: canvas.width*0.5, y: canvas.height*0.6},
+                        {x: canvas.width*0.8, y: canvas.height*0.6}
+                    ];
+                    this.adj = [
+                        [1,2],
+                        [0,3],
+                        [0,3],
+                        [1,2,4],
+                        [3]
+                    ];
+                },
+                step() {
+                    if (this.done) return;
+                    if (this.stack.length === 0) { this.done = true; return; }
+                    const u = this.stack.pop();
+                    if (!this.vis[u]) {
+                        this.vis[u] = true;
+                        this.order.push(u);
+                        const neighbors = [...this.adj[u]].reverse();
+                        for (const v of neighbors) {
+                            if (!this.vis[v]) this.stack.push(v);
+                        }
+                        stats.steps++;
+                    }
+                },
+                draw() {
+                    ctx.clearRect(0,0,canvas.width,canvas.height);
+                    ctx.strokeStyle = '#555';
+                    ctx.lineWidth = 2;
+                    for (let u = 0; u < this.nodes.length; u++) {
+                        for (const v of this.adj[u]) {
+                            if (v > u) {
+                                const a = this.nodes[u], b = this.nodes[v];
+                                ctx.beginPath();
+                                ctx.moveTo(a.x,a.y);
+                                ctx.lineTo(b.x,b.y);
+                                ctx.stroke();
+                            }
+                        }
+                    }
+                    for (let i = 0; i < this.nodes.length; i++) {
+                        const n = this.nodes[i];
+                        let color = '#4fd0e3';
+                        if (this.order.includes(i)) color = '#26de81';
+                        ctx.beginPath();
+                        ctx.arc(n.x, n.y, 18, 0, Math.PI*2);
+                        ctx.fillStyle = color;
+                        ctx.fill();
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                        ctx.fillStyle = '#000';
+                        ctx.font = '12px monospace';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(String(i), n.x, n.y);
+                    }
+                }
+            },
+
+            prims: {
+                type: 'graph',
+                init() {
+                    this.buildGraph();
+                    const n = this.nodes.length;
+                    this.inMst = Array(n).fill(false);
+                    this.inMst[0] = true;
+                    this.edges = [];
+                    this.stepCount = 0;
+                    this.done = false;
+                    resetStats();
+                },
+                buildGraph() {
+                    this.nodes = [
+                        {x: canvas.width*0.3, y: canvas.height*0.3},
+                        {x: canvas.width*0.6, y: canvas.height*0.3},
+                        {x: canvas.width*0.2, y: canvas.height*0.6},
+                        {x: canvas.width*0.5, y: canvas.height*0.6},
+                        {x: canvas.width*0.8, y: canvas.height*0.6}
+                    ];
+                    this.weight = [
+                        [0,2,0,6,0],
+                        [2,0,3,8,5],
+                        [0,3,0,0,7],
+                        [6,8,0,0,9],
+                        [0,5,7,9,0]
+                    ];
+                },
+                step() {
+                    if (this.done) return;
+                    const n = this.nodes.length;
+                    if (this.edges.length >= n-1) { this.done = true; return; }
+                    let min = Infinity, a=-1, b=-1;
+                    for (let i=0;i<n;i++) if (this.inMst[i]) {
+                        for (let j=0;j<n;j++) if (!this.inMst[j] && this.weight[i][j]>0) {
+                            if (this.weight[i][j] < min) {min=this.weight[i][j]; a=i; b=j;}
+                        }
+                    }
+                    if (a===-1) { this.done = true; return; }
+                    this.inMst[b] = true;
+                    this.edges.push([a,b]);
+                    stats.steps++;
+                },
+                draw() {
+                    ctx.clearRect(0,0,canvas.width,canvas.height);
+                    ctx.strokeStyle = '#555';
+                    ctx.lineWidth = 1;
+                    const n = this.nodes.length;
+                    for (let i=0;i<n;i++) {
+                        for (let j=i+1;j<n;j++) {
+                            if (this.weight[i][j]>0) {
+                                const a = this.nodes[i], b = this.nodes[j];
+                                ctx.beginPath();
+                                ctx.moveTo(a.x,a.y);
+                                ctx.lineTo(b.x,b.y);
+                                ctx.stroke();
+                            }
+                        }
+                    }
+                    ctx.strokeStyle = '#26de81';
+                    ctx.lineWidth = 3;
+                    for (const e of this.edges) {
+                        const a = this.nodes[e[0]], b = this.nodes[e[1]];
+                        ctx.beginPath();
+                        ctx.moveTo(a.x,a.y);
+                        ctx.lineTo(b.x,b.y);
+                        ctx.stroke();
+                    }
+                    for (let i=0;i<n;i++) {
+                        const node = this.nodes[i];
+                        let color = this.inMst[i] ? '#26de81' : '#4fd0e3';
+                        ctx.beginPath();
+                        ctx.arc(node.x,node.y,18,0,Math.PI*2);
+                        ctx.fillStyle = color;
+                        ctx.fill();
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                        ctx.fillStyle = '#000';
+                        ctx.font = '12px monospace';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(String(i), node.x, node.y);
+                    }
+                }
+            },
+
+            kruskal: {
+                type: 'graph',
+                init() {
+                    this.buildGraph();
+                    const n = this.nodes.length;
+                    this.parent = [];
+                    for (let i=0;i<n;i++) this.parent[i]=i;
+                    this.edgesList = [];
+                    for (let i=0;i<n;i++) {
+                        for (let j=i+1;j<n;j++) {
+                            if (this.weight[i][j]>0) {
+                                this.edgesList.push({u:i,v:j,w:this.weight[i][j]});
+                            }
+                        }
+                    }
+                    this.edgesList.sort((a,b)=>a.w-b.w);
+                    this.mstEdges = [];
+                    this.idx = 0;
+                    this.done = false;
+                    resetStats();
+                },
+                buildGraph() {
+                    this.nodes = [
+                        {x: canvas.width*0.3, y: canvas.height*0.3},
+                        {x: canvas.width*0.6, y: canvas.height*0.3},
+                        {x: canvas.width*0.2, y: canvas.height*0.6},
+                        {x: canvas.width*0.5, y: canvas.height*0.6},
+                        {x: canvas.width*0.8, y: canvas.height*0.6}
+                    ];
+                    this.weight = [
+                        [0,2,0,6,0],
+                        [2,0,3,8,5],
+                        [0,3,0,0,7],
+                        [6,8,0,0,9],
+                        [0,5,7,9,0]
+                    ];
+                },
+                find(x){ while (this.parent[x]!==x) x=this.parent[x]; return x; },
+                unite(a,b){ this.parent[a]=b; },
+                step() {
+                    if (this.done) return;
+                    const n=this.nodes.length;
+                    if (this.mstEdges.length>=n-1 || this.idx>=this.edgesList.length) {
+                        this.done=true; return;
+                    }
+                    const e = this.edgesList[this.idx++];
+                    const u = this.find(e.u), v=this.find(e.v);
+                    if (u!==v) {
+                        this.unite(u,v);
+                        this.mstEdges.push([e.u,e.v]);
+                        stats.steps++;
+                    }
+                },
+                draw() {
+                    ctx.clearRect(0,0,canvas.width,canvas.height);
+                    ctx.strokeStyle = '#555';
+                    ctx.lineWidth = 1;
+                    const n = this.nodes.length;
+                    for (let i=0;i<n;i++) {
+                        for (let j=i+1;j<n;j++) {
+                            if (this.weight[i][j]>0) {
+                                const a=this.nodes[i], b=this.nodes[j];
+                                ctx.beginPath();
+                                ctx.moveTo(a.x,a.y);
+                                ctx.lineTo(b.x,b.y);
+                                ctx.stroke();
+                            }
+                        }
+                    }
+                    ctx.strokeStyle='#26de81';
+                    ctx.lineWidth=3;
+                    for (const e of this.mstEdges) {
+                        const a=this.nodes[e[0]], b=this.nodes[e[1]];
+                        ctx.beginPath();
+                        ctx.moveTo(a.x,a.y);
+                        ctx.lineTo(b.x,b.y);
+                        ctx.stroke();
+                    }
+                    for (let i=0;i<n;i++) {
+                        const node=this.nodes[i];
+                        ctx.beginPath();
+                        ctx.arc(node.x,node.y,18,0,Math.PI*2);
+                        ctx.fillStyle='#4fd0e3';
+                        ctx.fill();
+                        ctx.strokeStyle='#fff';
+                        ctx.lineWidth=2;
+                        ctx.stroke();
+                        ctx.fillStyle='#000';
+                        ctx.font='12px monospace';
+                        ctx.textAlign='center';
+                        ctx.textBaseline='middle';
+                        ctx.fillText(String(i),node.x,node.y);
+                    }
+                }
+            },
+
+            dijkstra: {
+                type: 'graph',
+                init() {
+                    this.buildGraph();
+                    const n=this.nodes.length;
+                    this.dist = Array(n).fill(Infinity);
+                    this.vis = Array(n).fill(false);
+                    this.dist[0]=0;
+                    this.done=false;
+                    resetStats();
+                },
+                buildGraph() {
+                    this.nodes = [
+                        {x: canvas.width*0.3, y: canvas.height*0.3},
+                        {x: canvas.width*0.6, y: canvas.height*0.3},
+                        {x: canvas.width*0.2, y: canvas.height*0.6},
+                        {x: canvas.width*0.5, y: canvas.height*0.6},
+                        {x: canvas.width*0.8, y: canvas.height*0.6}
+                    ];
+                    this.weight = [
+                        [0,10,0,5,0],
+                        [10,0,1,2,0],
+                        [0,1,0,0,4],
+                        [5,2,0,0,3],
+                        [0,0,4,3,0]
+                    ];
+                },
+                step() {
+                    if (this.done) return;
+                    const n=this.nodes.length;
+                    let u=-1, best=Infinity;
+                    for (let i=0;i<n;i++) {
+                        if (!this.vis[i] && this.dist[i]<best) {
+                            best=this.dist[i]; u=i;
+                        }
+                    }
+                    if (u===-1) { this.done=true; return; }
+                    this.vis[u]=true;
+                    for (let v=0; v<n; v++) {
+                        if (this.weight[u][v]>0 && this.dist[u]+this.weight[u][v]<this.dist[v]) {
+                            this.dist[v]=this.dist[u]+this.weight[u][v];
+                        }
+                    }
+                    stats.steps++;
+                },
+                draw() {
+                    ctx.clearRect(0,0,canvas.width,canvas.height);
+                    ctx.strokeStyle='#555';
+                    ctx.lineWidth=1;
+                    const n=this.nodes.length;
+                    for (let i=0;i<n;i++) {
+                        for (let j=i+1;j<n;j++) {
+                            if (this.weight[i][j]>0) {
+                                const a=this.nodes[i], b=this.nodes[j];
+                                ctx.beginPath();
+                                ctx.moveTo(a.x,a.y);
+                                ctx.lineTo(b.x,b.y);
+                                ctx.stroke();
+                            }
+                        }
+                    }
+                    ctx.fillStyle='#ffffff';
+                    ctx.font='12px monospace';
+                    for (let i=0;i<n;i++) {
+                        for (let j=i+1;j<n;j++) {
+                            if (this.weight[i][j]>0) {
+                                const a=this.nodes[i], b=this.nodes[j];
+                                const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+                                ctx.fillText(String(this.weight[i][j]), mx, my-4);
+                            }
+                        }
+                    }
+                    for (let i=0;i<n;i++) {
+                        const node=this.nodes[i];
+                        ctx.beginPath();
+                        ctx.arc(node.x,node.y,18,0,Math.PI*2);
+                        ctx.fillStyle=this.vis[i]?'#26de81':'#4fd0e3';
+                        ctx.fill();
+                        ctx.strokeStyle='#fff';
+                        ctx.lineWidth=2;
+                        ctx.stroke();
+                        ctx.fillStyle='#000';
+                        ctx.font='11px monospace';
+                        ctx.textAlign='center';
+                        ctx.textBaseline='middle';
+                        ctx.fillText(i+':'+(this.dist[i]===Infinity?'inf':this.dist[i]),node.x,node.y);
+                    }
+                }
+            },
+
             bst: {
                 type: 'tree',
                 init() {
                     this.values = [];
-                    for (let i = 0; i < 10; i++) {
-                        this.values.push(Math.floor(Math.random()*80)+10);
-                    }
-                    this.root = null;
-                    this.insertIndex = 0;
-                    this.done = false;
+                    for (let i=0;i<7;i++) this.values.push(Math.floor(Math.random()*80)+10);
+                    this.root=null;
+                    this.insertIndex=0;
+                    this.done=false;
                     resetStats();
                 },
-                insertVal(val) {
+                insertVal(v) {
                     if (!this.root) {
-                        this.root = { val, x: canvas.width/2, y: 80, left:null, right:null };
+                        this.root={val:v,x:canvas.width/2,y:80,left:null,right:null};
                         return;
                     }
-                    let node = this.root;
+                    let node=this.root;
                     while (true) {
                         stats.ops++;
-                        if (val < node.val) {
+                        if (v < node.val) {
                             if (!node.left) {
-                                node.left = { val, x: node.x - 70, y: node.y + 70, left:null, right:null };
+                                node.left={val:v,x:node.x-70,y:node.y+70,left:null,right:null};
                                 return;
                             }
-                            node = node.left;
+                            node=node.left;
                         } else {
                             if (!node.right) {
-                                node.right = { val, x: node.x + 70, y: node.y + 70, left:null, right:null };
+                                node.right={val:v,x:node.x+70,y:node.y+70,left:null,right:null};
                                 return;
                             }
-                            node = node.right;
+                            node=node.right;
                         }
                     }
                 },
                 step() {
                     if (this.done) return;
-                    if (this.insertIndex >= this.values.length) {
-                        this.done = true;
-                        return;
-                    }
+                    if (this.insertIndex >= this.values.length) { this.done=true; return; }
                     this.insertVal(this.values[this.insertIndex]);
                     this.insertIndex++;
                     stats.steps++;
                 },
-                drawNode(node) {
+                drawEdges(node) {
                     if (!node) return;
                     if (node.left) {
-                        ctx.strokeStyle = '#4fd0e3';
-                        ctx.lineWidth = 2;
+                        ctx.strokeStyle='#4fd0e3';
+                        ctx.lineWidth=2;
                         ctx.beginPath();
-                        ctx.moveTo(node.x, node.y+18);
-                        ctx.lineTo(node.left.x, node.left.y-18);
+                        ctx.moveTo(node.x,node.y+18);
+                        ctx.lineTo(node.left.x,node.left.y-18);
                         ctx.stroke();
                     }
                     if (node.right) {
-                        ctx.strokeStyle = '#4fd0e3';
-                        ctx.lineWidth = 2;
+                        ctx.strokeStyle='#4fd0e3';
+                        ctx.lineWidth=2;
                         ctx.beginPath();
-                        ctx.moveTo(node.x, node.y+18);
-                        ctx.lineTo(node.right.x, node.right.y-18);
+                        ctx.moveTo(node.x,node.y+18);
+                        ctx.lineTo(node.right.x,node.right.y-18);
                         ctx.stroke();
                     }
-                    this.drawNode(node.left);
-                    this.drawNode(node.right);
+                    this.drawEdges(node.left);
+                    this.drawEdges(node.right);
                 },
                 drawNodes(node) {
                     if (!node) return;
                     this.drawNodes(node.left);
                     this.drawNodes(node.right);
                     ctx.beginPath();
-                    ctx.arc(node.x, node.y, 18, 0, Math.PI*2);
-                    ctx.fillStyle = '#26de81';
+                    ctx.arc(node.x,node.y,18,0,Math.PI*2);
+                    ctx.fillStyle='#26de81';
                     ctx.fill();
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 2;
+                    ctx.strokeStyle='#fff';
+                    ctx.lineWidth=2;
                     ctx.stroke();
-                    ctx.fillStyle = '#000';
-                    ctx.font = '12px monospace';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(node.val.toString(), node.x, node.y);
+                    ctx.fillStyle='#000';
+                    ctx.font='12px monospace';
+                    ctx.textAlign='center';
+                    ctx.textBaseline='middle';
+                    ctx.fillText(String(node.val),node.x,node.y);
                 },
                 draw() {
                     ctx.clearRect(0,0,canvas.width,canvas.height);
                     if (!this.root) return;
-                    this.drawNode(this.root);
+                    this.drawEdges(this.root);
                     this.drawNodes(this.root);
                 }
             }
         };
-
-        let currentAlgo = null;
-
-        function selectAlgo(key) {
-            currentAlgoKey = key;
-            document.querySelectorAll('#sidebar button').forEach(b => b.classList.remove('active'));
-            const btn = document.getElementById('btn-' + key);
-            if (btn) btn.classList.add('active');
-            currentAlgo = createAlgoInstance(key);
-            currentAlgo.init();
-            updateStats('Ready');
-        }
 
         function createAlgoInstance(key) {
             const base = ALGORITHMS[key];
@@ -579,6 +1220,24 @@ int main() {
                 }
             }
             return copy;
+        }
+
+        function selectAlgo(key) {
+            currentAlgoKey = key;
+            document.querySelectorAll('#sidebar button').forEach(b => b.classList.remove('active'));
+            const btn = document.getElementById('btn-' + key);
+            if (btn) btn.classList.add('active');
+            currentAlgo = createAlgoInstance(key);
+            currentAlgo.init();
+            updateStats('Ready');
+            const titleMap = {
+                bubble:'Bubble sort', selection:'Selection sort', insertion:'Insertion sort',
+                linear:'Linear search', binary:'Binary search',
+                bfs:'BFS', dfs:'DFS', prims:'Prim', kruskal:'Kruskal', dijkstra:'Dijkstra',
+                bst:'BST insert'
+            };
+            document.getElementById('editor-title').textContent = 'C code: ' + (titleMap[key] || key);
+            document.getElementById('editor').value = C_TEMPLATES[key] || '';
         }
 
         function togglePlay() {
@@ -601,23 +1260,19 @@ int main() {
         }
 
         function updateSpeed(v) {
-            stepDelay = parseInt(v, 10);
+            stepDelay = parseInt(v,10);
             document.getElementById('speedVal').textContent = v;
         }
 
         function updateSize(v) {
-            dataSize = parseInt(v, 10);
+            dataSize = parseInt(v,10);
             document.getElementById('sizeVal').textContent = v;
-            if (ALGORITHMS[currentAlgoKey].type === 'array') {
-                resetAlgo();
-            }
+            if (ALGORITHMS[currentAlgoKey].type === 'array') resetAlgo();
         }
 
         function animateLoop() {
             ctx.clearRect(0,0,canvas.width,canvas.height);
-            if (currentAlgo && currentAlgo.draw) {
-                currentAlgo.draw();
-            }
+            if (currentAlgo && currentAlgo.draw) currentAlgo.draw();
             if (isPlaying && currentAlgo && !currentAlgo.done) {
                 currentAlgo.step();
                 updateStats(currentAlgo.done ? 'Done' : 'Running');
@@ -626,18 +1281,18 @@ int main() {
         }
 
         function toggleEditor() {
-            const container = document.getElementById('editor-container');
-            const btn = document.getElementById('toggle-editor');
-            if (container.classList.contains('minimized')) {
-                container.classList.remove('minimized');
-                btn.textContent = 'minimize';
+            const cont = document.getElementById('editor-container');
+            const arrow = document.getElementById('editor-toggle-arrow');
+            if (cont.classList.contains('minimized')) {
+                cont.classList.remove('minimized');
+                arrow.textContent = '▼';
             } else {
-                container.classList.add('minimized');
-                btn.textContent = 'maximize';
+                cont.classList.add('minimized');
+                arrow.textContent = '▶';
             }
         }
 
-        document.getElementById('toggle-editor').onclick = toggleEditor;
+        document.getElementById('editor-header').addEventListener('click', toggleEditor);
 
         selectAlgo('bubble');
         animateLoop();
