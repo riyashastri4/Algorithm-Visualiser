@@ -529,13 +529,22 @@ int main() {
                     this.j++; stats.steps++;
                 },
                 draw() {
-                    const w = canvas.width / this.arr.length;
-                    for (let k = 0; k < this.arr.length; k++) {
+                    const n = this.arr.length;
+                    if (n === 0) return;
+                    const maxVal = Math.max(...this.arr);
+                    const barWidth = Math.max(2, canvas.width / (n * 1.2));
+                    const scale = (canvas.height * 0.75) / (maxVal || 1);
+                    const baseY = canvas.height;
+                    const gap = (canvas.width - barWidth * n) / (n + 1);
+
+                    for (let k = 0; k < n; k++) {
+                        const h = this.arr[k] * scale;
                         let color = '#4fd0e3';
                         if (k === this.j || k === this.j+1) color = '#ff6b6b';
-                        if (k >= this.arr.length - this.i) color = '#26de81';
+                        if (k >= n - this.i) color = '#26de81';
+                        const x = gap + k * (barWidth + gap);
                         ctx.fillStyle = color;
-                        ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
+                        ctx.fillRect(x, baseY - h, barWidth, h);
                     }
                 }
             },
@@ -568,13 +577,22 @@ int main() {
                     }
                 },
                 draw() {
-                    const w = canvas.width / this.arr.length;
-                    for (let k = 0; k < this.arr.length; k++) {
+                    const n = this.arr.length;
+                    if (n === 0) return;
+                    const maxVal = Math.max(...this.arr);
+                    const barWidth = Math.max(2, canvas.width / (n * 1.2));
+                    const scale = (canvas.height * 0.75) / (maxVal || 1);
+                    const baseY = canvas.height;
+                    const gap = (canvas.width - barWidth * n) / (n + 1);
+
+                    for (let k = 0; k < n; k++) {
+                        const h = this.arr[k] * scale;
                         let color = '#4fd0e3';
                         if (k === this.i) color = '#26de81';
                         if (k === this.minIdx) color = '#ff6b6b';
+                        const x = gap + k * (barWidth + gap);
                         ctx.fillStyle = color;
-                        ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
+                        ctx.fillRect(x, baseY - h, barWidth, h);
                     }
                 }
             },
@@ -605,12 +623,21 @@ int main() {
                     }
                 },
                 draw() {
-                    const w = canvas.width / this.arr.length;
-                    for (let k = 0; k < this.arr.length; k++) {
+                    const n = this.arr.length;
+                    if (n === 0) return;
+                    const maxVal = Math.max(...this.arr);
+                    const barWidth = Math.max(2, canvas.width / (n * 1.2));
+                    const scale = (canvas.height * 0.75) / (maxVal || 1);
+                    const baseY = canvas.height;
+                    const gap = (canvas.width - barWidth * n) / (n + 1);
+
+                    for (let k = 0; k < n; k++) {
+                        const h = this.arr[k] * scale;
                         let color = k < this.i ? '#26de81' : '#4fd0e3';
                         if (k === this.j || k === this.j+1) color = '#ff6b6b';
+                        const x = gap + k * (barWidth + gap);
                         ctx.fillStyle = color;
-                        ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
+                        ctx.fillRect(x, baseY - h, barWidth, h);
                     }
                 }
             },
@@ -636,17 +663,26 @@ int main() {
                     this.i++; stats.steps++;
                 },
                 draw() {
-                    const w = canvas.width / this.arr.length;
+                    const n = this.arr.length;
+                    if (n === 0) return;
+                    const maxVal = Math.max(...this.arr);
+                    const barWidth = Math.max(2, canvas.width / (n * 1.2));
+                    const scale = (canvas.height * 0.6) / (maxVal || 1);
+                    const baseY = canvas.height;
+                    const gap = (canvas.width - barWidth * n) / (n + 1);
+
                     ctx.fillStyle = '#ffffff';
                     ctx.font = '14px monospace';
                     ctx.fillText('Key: ' + this.key, 10, 20);
-                    for (let k = 0; k < this.arr.length; k++) {
-                        const h = (this.arr[k] / 420) * (canvas.height * 0.6);
+
+                    for (let k = 0; k < n; k++) {
+                        const h = this.arr[k] * scale;
                         let color = '#4fd0e3';
                         if (k === this.i - 1) color = '#ff6b6b';
                         if (k === this.found) color = '#26de81';
+                        const x = gap + k * (barWidth + gap);
                         ctx.fillStyle = color;
-                        ctx.fillRect(k * w, canvas.height - h, w - 1, h);
+                        ctx.fillRect(x, baseY - h, barWidth, h);
                     }
                 }
             },
@@ -677,18 +713,27 @@ int main() {
                     stats.steps++;
                 },
                 draw() {
-                    const w = canvas.width / this.arr.length;
+                    const n = this.arr.length;
+                    if (n === 0) return;
+                    const maxVal = Math.max(...this.arr);
+                    const barWidth = Math.max(2, canvas.width / (n * 1.2));
+                    const scale = (canvas.height * 0.6) / (maxVal || 1);
+                    const baseY = canvas.height;
+                    const gap = (canvas.width - barWidth * n) / (n + 1);
+
                     ctx.fillStyle = '#ffffff';
                     ctx.font = '14px monospace';
                     ctx.fillText('Key: ' + this.key, 10, 20);
-                    for (let k = 0; k < this.arr.length; k++) {
-                        const h = (this.arr[k] / 420) * (canvas.height * 0.6);
+
+                    for (let k = 0; k < n; k++) {
+                        const h = this.arr[k] * scale;
                         let color = '#4fd0e3';
                         if (k >= this.l && k <= this.r) color = '#533483';
                         if (k === this.mid) color = '#ff6b6b';
                         if (k === this.found) color = '#26de81';
+                        const x = gap + k * (barWidth + gap);
                         ctx.fillStyle = color;
-                        ctx.fillRect(k * w, canvas.height - h, w - 1, h);
+                        ctx.fillRect(x, baseY - h, barWidth, h);
                     }
                 }
             },
@@ -1124,7 +1169,7 @@ int main() {
                         }
                     }
                     for (let i=0;i<n;i++) {
-                        if (!this.vis[i]) continue;           // skip unreachable
+                        if (!this.vis[i]) continue;
                         const node=this.nodes[i];
                         ctx.beginPath();
                         ctx.arc(node.x,node.y,18,0,Math.PI*2);
@@ -1137,7 +1182,7 @@ int main() {
                         ctx.font='11px monospace';
                         ctx.textAlign='center';
                         ctx.textBaseline='middle';
-                        ctx.fillText(i+":" + this.dist[i],node.x,node.y);
+                        ctx.fillText(i + ":" + this.dist[i], node.x, node.y);
                     }
                 }
             },
@@ -1295,9 +1340,10 @@ int main() {
             if (ALGORITHMS[currentAlgoKey].type === 'array') resetAlgo();
         }
 
-        function parseArrayFromCode() {
+        function parseArrayFromCode(name) {
             const code = document.getElementById('editor').value;
-            const match = code.match(/int\s+arr\s*\[\s*\]\s*=\s*\{([^}]+)\}/);
+            const re = new RegExp('int\\s+' + name + '\\s*\\[\\s*\\]\\s*=\\s*\\{([^}]+)\\}');
+            const match = code.match(re);
             if (!match) return null;
             const inside = match[1];
             const parts = inside.split(',');
@@ -1337,7 +1383,7 @@ int main() {
 
         function applyFromCode() {
             if (ALGORITHMS[currentAlgoKey].type === 'array') {
-                const arr = parseArrayFromCode();
+                const arr = parseArrayFromCode('arr');
                 currentAlgo = createAlgoInstance(currentAlgoKey);
                 currentAlgo.init(arr);
                 updateStats('From code');
@@ -1351,9 +1397,9 @@ int main() {
                     updateStats('From code graph');
                 }
             } else if (currentAlgoKey === 'bst') {
-                const arr = parseArrayFromCode();
+                const vals = parseArrayFromCode('vals');
                 currentAlgo = createAlgoInstance('bst');
-                currentAlgo.init(arr);
+                currentAlgo.init(vals);
                 updateStats('From code');
             }
         }
