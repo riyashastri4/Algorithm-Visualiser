@@ -2,281 +2,645 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Algorithm Visualizer</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: monospace; }
-        body { background: #1a1a1a; color: #e0e0e0; height: 100vh; display: flex; }
-        
-        #sidebar { width: 280px; background: #2d2d2d; padding: 20px; overflow-y: auto; }
-        #canvas { flex: 1; background: #0a0a0a; }
-        #editor { position: fixed; bottom: 0; right: 0; width: 400px; height: 300px; background: #1e1e1e; border: none; color: #fff; padding: 10px; font-size: 13px; font-family: monospace; resize: none; }
-        #editor-header { background: #333; padding: 8px; color: #63b3ed; font-weight: bold; }
-        
-        button { width: 100%; padding: 12px; margin: 4px 0; background: #4a5568; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 14px; }
-        button:hover { background: #63b3ed; }
-        button.active { background: #4299e1; }
-        
-        .section { margin-bottom: 25px; }
-        .section h3 { color: #63b3ed; margin-bottom: 12px; font-size: 15px; border-bottom: 1px solid #444; padding-bottom: 5px; }
-        input[type="range"] { width: 100%; margin: 8px 0; }
-        label { display: block; margin: 6px 0; font-size: 12px; color: #a0a0a0; }
-        #stats { background: #333; padding: 12px; margin-top: 15px; font-size: 13px; border-radius: 3px; }
+        * { margin:0; padding:0; box-sizing:border-box; font-family:monospace; }
+        body { background:#1a1a1a; color:#e0e0e0; height:100vh; display:flex; }
+
+        /* Sidebar */
+        #sidebar { width:260px; background:#2d2d2d; padding:15px; overflow-y:auto; }
+        .section { margin-bottom:20px; }
+        .section h3 { font-size:14px; color:#63b3ed; margin-bottom:8px; border-bottom:1px solid #444; padding-bottom:4px; }
+
+        button { width:100%; padding:8px; margin:3px 0; background:#4a5568; color:#fff; border:none; border-radius:3px; cursor:pointer; font-size:13px; }
+        button:hover { background:#63b3ed; }
+        button.active { background:#4299e1; }
+
+        input[type="range"] { width:100%; }
+        label { display:block; font-size:11px; color:#a0a0a0; margin-top:5px; }
+
+        #stats { background:#333; padding:8px; margin-top:10px; font-size:12px; border-radius:3px; }
+
+        /* Visualizer area */
+        #main { flex:1; position:relative; background:#0a0a0a; }
+        #canvas { width:100%; height:100%; display:block; }
+
+        /* C editor panel */
+        #editor-container {
+            position:absolute;
+            right:0;
+            bottom:0;
+            width:360px;
+            height:260px;
+            background:#1e1e1e;
+            border-left:1px solid #444;
+            border-top:1px solid #444;
+            display:flex;
+            flex-direction:column;
+        }
+        #editor-header {
+            padding:6px 8px;
+            background:#333;
+            color:#63b3ed;
+            font-size:12px;
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            cursor:pointer;
+        }
+        #editor {
+            flex:1;
+            width:100%;
+            border:none;
+            background:#1e1e1e;
+            color:#fff;
+            font-size:11px;
+            padding:6px;
+            resize:none;
+        }
+        #editor-container.minimized {
+            height:22px;
+        }
+        #toggle-editor {
+            font-size:11px;
+            color:#ccc;
+            border:none;
+            background:transparent;
+            cursor:pointer;
+        }
     </style>
 </head>
 <body>
     <div id="sidebar">
         <div class="section">
             <h3>Algorithms</h3>
-            <button onclick="selectAlgo('bubble')" id="bubble">Bubble Sort</button>
-            <button onclick="selectAlgo('selection')" id="selection">Selection Sort</button>
-            <button onclick="selectAlgo('insertion')" id="insertion">Insertion Sort</button>
-            <button onclick="selectAlgo('merge')" id="merge">Merge Sort</button>
-            <button onclick="selectAlgo('quick')" id="quick">Quick Sort</button>
-            <button onclick="selectAlgo('linear')" id="linear">Linear Search</button>
-            <button onclick="selectAlgo('binary')" id="binary">Binary Search</button>
-            <button onclick="selectAlgo('bfs')" id="bfs">BFS Maze</button>
-            <button onclick="selectAlgo('bst')" id="bst">BST Insert</button>
+            <button onclick="selectAlgo('bubble')"   id="btn-bubble">Bubble sort</button>
+            <button onclick="selectAlgo('selection')"id="btn-selection">Selection sort</button>
+            <button onclick="selectAlgo('insertion')"id="btn-insertion">Insertion sort</button>
+            <button onclick="selectAlgo('linear')"   id="btn-linear">Linear search</button>
+            <button onclick="selectAlgo('binary')"   id="btn-binary">Binary search</button>
+            <button onclick="selectAlgo('bfs')"      id="btn-bfs">BFS maze</button>
+            <button onclick="selectAlgo('bst')"      id="btn-bst">BST insert</button>
         </div>
-        
+
         <div class="section">
             <h3>Controls</h3>
-            <button onclick="generateData()">New Data</button>
-            <button onclick="togglePlay()">Play/Pause</button>
+            <button onclick="togglePlay()" id="play-btn">Play</button>
             <button onclick="doStep()">Step</button>
             <button onclick="resetAlgo()">Reset</button>
         </div>
-        
+
         <div class="section">
             <h3>Settings</h3>
-            <label>Speed: <span id="speedVal">200</span>ms</label>
+            <label>Speed: <span id="speedVal">200</span> ms</label>
             <input type="range" id="speed" min="50" max="1000" value="200" oninput="updateSpeed(this.value)">
-            <label>Size: <span id="sizeVal">60</span></label>
-            <input type="range" id="size" min="20" max="100" value="60" oninput="updateSize(this.value)">
+            <label>Size (for array-based algos): <span id="sizeVal">60</span></label>
+            <input type="range" id="size" min="10" max="120" value="60" oninput="updateSize(this.value)">
         </div>
-        
+
         <div id="stats">Steps: 0 | Ops: 0 | Status: Ready</div>
     </div>
-    
-    <canvas id="canvas"></canvas>
-    
-    <div id="editor-header">C Code Base - Edit array values here</div>
-    <textarea id="editor">#include <stdio.h>
+
+    <div id="main">
+        <canvas id="canvas"></canvas>
+
+        <div id="editor-container">
+            <div id="editor-header">
+                <span>C base code (edit values, logic same)</span>
+                <button id="toggle-editor" type="button">minimize</button>
+            </div>
+            <textarea id="editor">
+#include <stdio.h>
+
 int main() {
     int arr[] = {64, 34, 25, 12, 22, 11, 90};
     int n = 7;
-    
+
     printf("Array: ");
-    for(int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++) {
         printf("%d ", arr[i]);
     }
     printf("\n");
-    
-    // Change values above and click "New Data" to visualize
-    // Example: arr[] = {5, 2, 8, 1, 9, 3};
-    
+
+    /* Change arr[] values and n
+       to test different cases in C. */
+
     return 0;
-}</textarea>
+}
+            </textarea>
+        </div>
+    </div>
 
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth - 280;
-        canvas.height = window.innerHeight;
-        
-        let currentAlgo = null, isPlaying = false, animationId;
-        let stats = { steps: 0, ops: 0 }, stepDelay = 200, dataSize = 60;
-        
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth - 280;
-            canvas.height = window.innerHeight;
-        });
 
+        function resizeCanvas() {
+            canvas.width = document.getElementById('main').clientWidth;
+            canvas.height = document.getElementById('main').clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        let dataSize = 60;
+        let stepDelay = 200;
+        let isPlaying = false;
+        let currentAlgoKey = 'bubble';
+        let stats = { steps: 0, ops: 0 };
+
+        function resetStats() {
+            stats = { steps: 0, ops: 0 };
+            updateStats('Ready');
+        }
+
+        function updateStats(status) {
+            document.getElementById('stats').textContent =
+                'Steps: ' + stats.steps + ' | Ops: ' + stats.ops + ' | Status: ' + status;
+        }
+
+        /* Algorithm definitions */
         const ALGORITHMS = {
+            /* Bubble sort */
             bubble: {
-                name: "Bubble Sort", data: [], i: 0, j: 0, complete: false,
+                type: 'array',
                 init() {
-                    this.data = Array(dataSize).fill(0).map(() => Math.random() * canvas.height * 0.75 + 20);
-                    this.i = 0; this.j = 0; this.complete = false; resetStats();
+                    this.arr = Array(dataSize).fill(0).map(
+                        () => Math.random() * canvas.height * 0.75 + 10
+                    );
+                    this.i = 0;
+                    this.j = 0;
+                    this.done = false;
+                    resetStats();
                 },
                 step() {
-                    if (this.i >= this.data.length - 1) { this.complete = true; return; }
-                    if (this.j >= this.data.length - this.i - 1) { this.i++; this.j = 0; return; }
+                    if (this.done) return;
+                    if (this.i >= this.arr.length - 1) {
+                        this.done = true;
+                        return;
+                    }
+                    if (this.j >= this.arr.length - this.i - 1) {
+                        this.i++;
+                        this.j = 0;
+                        return;
+                    }
                     stats.ops++;
-                    if (this.data[this.j] > this.data[this.j + 1]) {
-                        [this.data[this.j], this.data[this.j + 1]] = [this.data[this.j + 1], this.data[this.j]];
+                    if (this.arr[this.j] > this.arr[this.j + 1]) {
+                        const t = this.arr[this.j];
+                        this.arr[this.j] = this.arr[this.j + 1];
+                        this.arr[this.j + 1] = t;
                     }
                     this.j++;
                     stats.steps++;
                 },
-                visualize() {
-                    const barWidth = canvas.width / this.data.length;
-                    this.data.forEach((h, idx) => {
-                        const x = idx * barWidth;
-                        let color = idx === this.j || idx === this.j + 1 ? '#ff6b6b' : '#4fd0e3';
-                        if (idx >= this.data.length - this.i) color = '#26de81';
+                draw() {
+                    const w = canvas.width / this.arr.length;
+                    for (let k = 0; k < this.arr.length; k++) {
+                        let color = '#4fd0e3';
+                        if (k === this.j || k === this.j + 1) color = '#ff6b6b';
+                        if (k >= this.arr.length - this.i) color = '#26de81';
                         ctx.fillStyle = color;
-                        ctx.fillRect(x, canvas.height - h, barWidth - 1, h);
-                    });
+                        ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
+                    }
                 }
             },
+
+            /* Selection sort */
             selection: {
-                name: "Selection Sort", data: [], i: 0, minIdx: 0, complete: false,
+                type: 'array',
                 init() {
-                    this.data = Array(dataSize).fill(0).map(() => Math.random() * canvas.height * 0.75 + 20);
-                    this.i = 0; this.minIdx = 0; this.complete = false; resetStats();
+                    this.arr = Array(dataSize).fill(0).map(
+                        () => Math.random() * canvas.height * 0.75 + 10
+                    );
+                    this.i = 0;
+                    this.j = 1;
+                    this.minIdx = 0;
+                    this.done = false;
+                    resetStats();
                 },
                 step() {
-                    if (this.i >= this.data.length - 1) { this.complete = true; return; }
-                    if (this.minIdx === this.i) {
-                        [this.data[this.i], this.data[this.minIdx]] = [this.data[this.minIdx], this.data[this.i]];
-                        this.i++; this.minIdx = this.i; stats.ops++; return;
+                    if (this.done) return;
+                    const n = this.arr.length;
+                    if (this.i >= n - 1) {
+                        this.done = true;
+                        return;
                     }
-                    if (this.data[this.minIdx] > this.data[this.minIdx + 1]) this.minIdx++;
-                    stats.steps++;
-                },
-                visualize() {
-                    const barWidth = canvas.width / this.data.length;
-                    this.data.forEach((h, idx) => {
-                        const x = idx * barWidth;
-                        let color = idx === this.i ? '#26de81' : (idx === this.minIdx ? '#ff6b6b' : '#4fd0e3');
-                        ctx.fillStyle = color;
-                        ctx.fillRect(x, canvas.height - h, barWidth - 1, h);
-                    });
-                }
-            },
-            insertion: {
-                name: "Insertion Sort", data: [], i: 1, j: 0, complete: false,
-                init() {
-                    this.data = Array(dataSize).fill(0).map(() => Math.random() * canvas.height * 0.75 + 20);
-                    this.i = 1; this.j = 0; this.complete = false; resetStats();
-                },
-                step() {
-                    if (this.i >= this.data.length) { this.complete = true; return; }
-                    if (this.j >= 0 && this.data[this.j] > this.data[this.j + 1]) {
-                        [this.data[this.j], this.data[this.j + 1]] = [this.data[this.j + 1], this.data[this.j]];
-                        this.j--; stats.ops++;
+                    if (this.j < n) {
+                        stats.ops++;
+                        if (this.arr[this.j] < this.arr[this.minIdx]) {
+                            this.minIdx = this.j;
+                        }
+                        this.j++;
+                        stats.steps++;
                     } else {
-                        this.i++; this.j = this.i - 1;
+                        const t = this.arr[this.i];
+                        this.arr[this.i] = this.arr[this.minIdx];
+                        this.arr[this.minIdx] = t;
+                        this.i++;
+                        this.minIdx = this.i;
+                        this.j = this.i + 1;
                     }
-                    stats.steps++;
                 },
-                visualize() {
-                    const barWidth = canvas.width / this.data.length;
-                    this.data.forEach((h, idx) => {
-                        const x = idx * barWidth;
-                        let color = idx < this.i ? '#26de81' : '#4fd0e3';
-                        if (idx === this.j || idx === this.j + 1) color = '#ff6b6b';
+                draw() {
+                    const w = canvas.width / this.arr.length;
+                    for (let k = 0; k < this.arr.length; k++) {
+                        let color = '#4fd0e3';
+                        if (k === this.i) color = '#26de81';
+                        if (k === this.minIdx) color = '#ff6b6b';
                         ctx.fillStyle = color;
-                        ctx.fillRect(x, canvas.height - h, barWidth - 1, h);
-                    });
+                        ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
+                    }
                 }
             },
-            linear: {
-                name: "Linear Search", data: [], key: 0, i: 0, found: -1, complete: false,
+
+            /* Insertion sort */
+            insertion: {
+                type: 'array',
                 init() {
-                    this.data = Array(dataSize).fill(0).map(() => Math.floor(Math.random() * 400) + 20);
-                    this.key = Math.floor(Math.random() * 400) + 20;
-                    this.i = 0; this.found = -1; this.complete = false; resetStats();
+                    this.arr = Array(dataSize).fill(0).map(
+                        () => Math.random() * canvas.height * 0.75 + 10
+                    );
+                    this.i = 1;
+                    this.j = 0;
+                    this.done = false;
+                    resetStats();
                 },
                 step() {
-                    if (this.i >= this.data.length) { this.complete = true; return; }
+                    if (this.done) return;
+                    const n = this.arr.length;
+                    if (this.i >= n) {
+                        this.done = true;
+                        return;
+                    }
+                    if (this.j >= 0 && this.arr[this.j] > this.arr[this.j + 1]) {
+                        const t = this.arr[this.j];
+                        this.arr[this.j] = this.arr[this.j + 1];
+                        this.arr[this.j + 1] = t;
+                        this.j--;
+                        stats.ops++;
+                        stats.steps++;
+                    } else {
+                        this.i++;
+                        this.j = this.i - 1;
+                    }
+                },
+                draw() {
+                    const w = canvas.width / this.arr.length;
+                    for (let k = 0; k < this.arr.length; k++) {
+                        let color = k < this.i ? '#26de81' : '#4fd0e3';
+                        if (k === this.j || k === this.j + 1) color = '#ff6b6b';
+                        ctx.fillStyle = color;
+                        ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
+                    }
+                }
+            },
+
+            /* Linear search */
+            linear: {
+                type: 'array',
+                init() {
+                    this.arr = Array(dataSize).fill(0).map(
+                        () => Math.floor(Math.random() * 400) + 20
+                    );
+                    this.key = this.arr[Math.floor(Math.random() * this.arr.length)];
+                    this.i = 0;
+                    this.found = -1;
+                    this.done = false;
+                    resetStats();
+                },
+                step() {
+                    if (this.done) return;
+                    if (this.i >= this.arr.length) {
+                        this.done = true;
+                        return;
+                    }
                     stats.ops++;
-                    if (this.data[this.i] === this.key) {
-                        this.found = this.i; this.complete = true; return;
+                    if (this.arr[this.i] === this.key) {
+                        this.found = this.i;
+                        this.done = true;
                     }
                     this.i++;
                     stats.steps++;
                 },
-                visualize() {
-                    const barWidth = canvas.width / this.data.length;
-                    ctx.fillStyle = '#fff';
-                    ctx.font = '18px monospace';
-                    ctx.fillText(`Key: ${this.key}`, 20, 30);
-                    
-                    this.data.forEach((val, idx) => {
-                        const x = idx * barWidth, h = (val / 420) * canvas.height * 0.6;
-                        let color = idx === this.i ? '#ff6b6b' : '#4fd0e3';
-                        if (idx === this.found) color = '#26de81';
+                draw() {
+                    const w = canvas.width / this.arr.length;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '14px monospace';
+                    ctx.fillText('Key: ' + this.key, 10, 20);
+                    for (let k = 0; k < this.arr.length; k++) {
+                        const h = (this.arr[k] / 420) * (canvas.height * 0.6);
+                        let color = '#4fd0e3';
+                        if (k === this.i - 1) color = '#ff6b6b';
+                        if (k === this.found) color = '#26de81';
                         ctx.fillStyle = color;
-                        ctx.fillRect(x, canvas.height - h, barWidth - 1, h);
-                        ctx.fillStyle = '#fff';
-                        ctx.font = '12px monospace';
-                        ctx.textAlign = 'center';
-                        ctx.fillText(val.toString(), x + barWidth/2, canvas.height - h - 5);
-                    });
+                        ctx.fillRect(k * w, canvas.height - h, w - 1, h);
+                    }
+                }
+            },
+
+            /* Binary search */
+            binary: {
+                type: 'array',
+                init() {
+                    this.arr = Array(dataSize).fill(0).map(
+                        () => Math.floor(Math.random() * 400) + 20
+                    ).sort((a,b) => a-b);
+                    this.key = this.arr[Math.floor(Math.random() * this.arr.length)];
+                    this.l = 0;
+                    this.r = this.arr.length - 1;
+                    this.mid = -1;
+                    this.found = -1;
+                    this.done = false;
+                    resetStats();
+                },
+                step() {
+                    if (this.done) return;
+                    if (this.l > this.r) {
+                        this.done = true;
+                        return;
+                    }
+                    this.mid = Math.floor((this.l + this.r) / 2);
+                    stats.ops++;
+                    const val = this.arr[this.mid];
+                    if (val === this.key) {
+                        this.found = this.mid;
+                        this.done = true;
+                    } else if (val < this.key) {
+                        this.l = this.mid + 1;
+                    } else {
+                        this.r = this.mid - 1;
+                    }
+                    stats.steps++;
+                },
+                draw() {
+                    const w = canvas.width / this.arr.length;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '14px monospace';
+                    ctx.fillText('Key: ' + this.key, 10, 20);
+                    for (let k = 0; k < this.arr.length; k++) {
+                        const h = (this.arr[k] / 420) * (canvas.height * 0.6);
+                        let color = '#4fd0e3';
+                        if (k >= this.l && k <= this.r) color = '#533483';
+                        if (k === this.mid) color = '#ff6b6b';
+                        if (k === this.found) color = '#26de81';
+                        ctx.fillStyle = color;
+                        ctx.fillRect(k * w, canvas.height - h, w - 1, h);
+                    }
+                }
+            },
+
+            /* BFS maze */
+            bfs: {
+                type: 'grid',
+                init() {
+                    this.rows = 20;
+                    this.cols = 40;
+                    this.grid = [];
+                    for (let y = 0; y < this.rows; y++) {
+                        const row = [];
+                        for (let x = 0; x < this.cols; x++) {
+                            row.push(0);
+                        }
+                        this.grid.push(row);
+                    }
+                    for (let y = 0; y < this.rows; y++) {
+                        for (let x = 0; x < this.cols; x++) {
+                            if (Math.random() < 0.22 && !(x === 1 && y === 1) && !(x === this.cols-2 && y === this.rows-2)) {
+                                this.grid[y][x] = 1;
+                            }
+                        }
+                    }
+                    this.start = { x:1, y:1 };
+                    this.goal  = { x:this.cols-2, y:this.rows-2 };
+                    this.queue = [ { x:this.start.x, y:this.start.y } ];
+                    this.visited = new Set([ this.start.x + ',' + this.start.y ]);
+                    this.dirs = [ [1,0], [-1,0], [0,1], [0,-1] ];
+                    this.done = false;
+                    resetStats();
+                },
+                step() {
+                    if (this.done) return;
+                    if (this.queue.length === 0) {
+                        this.done = true;
+                        return;
+                    }
+                    const cur = this.queue.shift();
+                    if (cur.x === this.goal.x && cur.y === this.goal.y) {
+                        this.done = true;
+                        return;
+                    }
+                    for (const d of this.dirs) {
+                        const nx = cur.x + d[0];
+                        const ny = cur.y + d[1];
+                        if (nx < 0 || ny < 0 || nx >= this.cols || ny >= this.rows) continue;
+                        if (this.grid[ny][nx] === 1) continue;
+                        const key = nx + ',' + ny;
+                        if (this.visited.has(key)) continue;
+                        this.visited.add(key);
+                        this.queue.push({ x:nx, y:ny });
+                    }
+                    stats.steps++;
+                },
+                draw() {
+                    const cw = canvas.width / this.cols;
+                    const ch = canvas.height / this.rows;
+                    for (let y = 0; y < this.rows; y++) {
+                        for (let x = 0; x < this.cols; x++) {
+                            const key = x + ',' + y;
+                            if (this.grid[y][x] === 1) {
+                                ctx.fillStyle = '#222';
+                            } else if (this.visited.has(key)) {
+                                ctx.fillStyle = '#4fd0e3';
+                            } else {
+                                ctx.fillStyle = '#111';
+                            }
+                            ctx.fillRect(x*cw, y*ch, cw, ch);
+                        }
+                    }
+                    ctx.fillStyle = '#26de81';
+                    ctx.fillRect(this.start.x*cw, this.start.y*ch, cw, ch);
+                    ctx.fillStyle = '#ff6b6b';
+                    ctx.fillRect(this.goal.x*cw, this.goal.y*ch, cw, ch);
+                }
+            },
+
+            /* BST insert */
+            bst: {
+                type: 'tree',
+                init() {
+                    this.values = [];
+                    for (let i = 0; i < 10; i++) {
+                        this.values.push(Math.floor(Math.random()*80)+10);
+                    }
+                    this.root = null;
+                    this.insertIndex = 0;
+                    this.done = false;
+                    resetStats();
+                },
+                insertVal(val) {
+                    if (!this.root) {
+                        this.root = { val, x: canvas.width/2, y: 80, left:null, right:null };
+                        return;
+                    }
+                    let node = this.root;
+                    while (true) {
+                        stats.ops++;
+                        if (val < node.val) {
+                            if (!node.left) {
+                                node.left = { val, x: node.x - 70, y: node.y + 70, left:null, right:null };
+                                return;
+                            }
+                            node = node.left;
+                        } else {
+                            if (!node.right) {
+                                node.right = { val, x: node.x + 70, y: node.y + 70, left:null, right:null };
+                                return;
+                            }
+                            node = node.right;
+                        }
+                    }
+                },
+                step() {
+                    if (this.done) return;
+                    if (this.insertIndex >= this.values.length) {
+                        this.done = true;
+                        return;
+                    }
+                    this.insertVal(this.values[this.insertIndex]);
+                    this.insertIndex++;
+                    stats.steps++;
+                },
+                drawNode(node) {
+                    if (!node) return;
+                    if (node.left) {
+                        ctx.strokeStyle = '#4fd0e3';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(node.x, node.y+18);
+                        ctx.lineTo(node.left.x, node.left.y-18);
+                        ctx.stroke();
+                    }
+                    if (node.right) {
+                        ctx.strokeStyle = '#4fd0e3';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(node.x, node.y+18);
+                        ctx.lineTo(node.right.x, node.right.y-18);
+                        ctx.stroke();
+                    }
+                    this.drawNode(node.left);
+                    this.drawNode(node.right);
+                },
+                drawNodes(node) {
+                    if (!node) return;
+                    this.drawNodes(node.left);
+                    this.drawNodes(node.right);
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, 18, 0, Math.PI*2);
+                    ctx.fillStyle = '#26de81';
+                    ctx.fill();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.fillStyle = '#000';
+                    ctx.font = '12px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(node.val.toString(), node.x, node.y);
+                },
+                draw() {
+                    ctx.clearRect(0,0,canvas.width,canvas.height);
+                    if (!this.root) return;
+                    this.drawNode(this.root);
+                    this.drawNodes(this.root);
                 }
             }
         };
 
-        function resetStats() { stats = { steps: 0, ops: 0 }; }
+        let currentAlgo = null;
 
-        function animate() {
-            ctx.fillStyle = 'rgba(10,10,20,0.1)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            if (currentAlgo?.visualize) currentAlgo.visualize();
-            
-            if (isPlaying && currentAlgo && !currentAlgo.complete) {
-                setTimeout(() => {
-                    currentAlgo.step();
-                    updateStats();
-                }, stepDelay);
+        function selectAlgo(key) {
+            currentAlgoKey = key;
+            document.querySelectorAll('#sidebar button').forEach(b => b.classList.remove('active'));
+            const btn = document.getElementById('btn-' + key);
+            if (btn) btn.classList.add('active');
+            currentAlgo = createAlgoInstance(key);
+            currentAlgo.init();
+            updateStats('Ready');
+        }
+
+        function createAlgoInstance(key) {
+            const base = ALGORITHMS[key];
+            const copy = {};
+            for (const k in base) {
+                if (typeof base[k] === 'function') {
+                    copy[k] = base[k].bind(copy);
+                } else {
+                    copy[k] = JSON.parse(JSON.stringify(base[k]));
+                }
             }
-            
-            animationId = requestAnimationFrame(animate);
-        }
-
-        function selectAlgo(name) {
-            document.querySelectorAll('#sidebar button').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(name).classList.add('active');
-            currentAlgo = { ...ALGORITHMS[name] };
-            if (currentAlgo.init) currentAlgo.init();
-            updateStats();
-        }
-
-        function generateData() {
-            if (currentAlgo?.init) currentAlgo.init();
-            updateStats();
+            return copy;
         }
 
         function togglePlay() {
             isPlaying = !isPlaying;
-            document.querySelector('button[onclick="togglePlay()"]').textContent = isPlaying ? 'Pause' : 'Play/Pause';
+            document.getElementById('play-btn').textContent = isPlaying ? 'Pause' : 'Play';
         }
 
         function doStep() {
-            if (currentAlgo && !currentAlgo.complete) {
-                currentAlgo.step();
-                updateStats();
-            }
+            if (!currentAlgo) return;
+            currentAlgo.step();
+            updateStats(currentAlgo.done ? 'Done' : 'Stepping');
         }
 
         function resetAlgo() {
-            if (currentAlgo?.init) currentAlgo.init();
+            if (!currentAlgoKey) return;
+            currentAlgo = createAlgoInstance(currentAlgoKey);
+            currentAlgo.init();
             isPlaying = false;
-            document.querySelector('button[onclick="togglePlay()"]').textContent = 'Play/Pause';
-            updateStats();
+            document.getElementById('play-btn').textContent = 'Play';
         }
 
-        function updateSpeed(val) {
-            stepDelay = parseInt(val);
-            document.getElementById('speedVal').textContent = val;
+        function updateSpeed(v) {
+            stepDelay = parseInt(v, 10);
+            document.getElementById('speedVal').textContent = v;
         }
 
-        function updateSize(val) {
-            dataSize = parseInt(val);
-            document.getElementById('sizeVal').textContent = val;
+        function updateSize(v) {
+            dataSize = parseInt(v, 10);
+            document.getElementById('sizeVal').textContent = v;
+            if (ALGORITHMS[currentAlgoKey].type === 'array') {
+                resetAlgo();
+            }
         }
 
-        function updateStats() {
-            document.getElementById('stats').textContent = 
-                `Steps: ${stats.steps} | Ops: ${stats.ops} | Status: ${currentAlgo?.complete ? 'Complete' : 'Running'}`;
+        function animateLoop() {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            if (currentAlgo && currentAlgo.draw) {
+                currentAlgo.draw();
+            }
+            if (isPlaying && currentAlgo && !currentAlgo.done) {
+                currentAlgo.step();
+                updateStats(currentAlgo.done ? 'Done' : 'Running');
+            }
+            setTimeout(() => requestAnimationFrame(animateLoop), stepDelay);
         }
 
-        // Initialize
+        function toggleEditor() {
+            const container = document.getElementById('editor-container');
+            const btn = document.getElementById('toggle-editor');
+            if (container.classList.contains('minimized')) {
+                container.classList.remove('minimized');
+                btn.textContent = 'minimize';
+            } else {
+                container.classList.add('minimized');
+                btn.textContent = 'maximize';
+            }
+        }
+
+        document.getElementById('toggle-editor').onclick = toggleEditor;
+
         selectAlgo('bubble');
-        animate();
+        animateLoop();
     </script>
 </body>
 </html>
