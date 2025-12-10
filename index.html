@@ -143,65 +143,66 @@
         </div>
     </div>
 
-    <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
+   <script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
 
-        function resizeCanvas() {
-            canvas.width = document.getElementById('main').clientWidth;
-            canvas.height = document.getElementById('main').clientHeight;
+function resizeCanvas() {
+    canvas.width = document.getElementById('main').clientWidth;
+    canvas.height = document.getElementById('main').clientHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+let dataSize = 60;
+let stepDelay = 700;              // default speed 700 ms
+let isPlaying = false;
+let currentAlgoKey = 'bubble';
+let stats = { steps: 0, ops: 0 };
+let currentAlgo = null;
+
+/* shared graph data */
+let graphN = 5;
+let graphEdges = [
+    [0,1,2],
+    [0,3,6],
+    [1,2,3],
+    [1,3,8],
+    [1,4,5],
+    [2,4,7],
+    [3,4,9]
+];
+
+function buildAdjMatrix(n, edges) {
+    const w = Array.from({length:n}, () => Array(n).fill(0));
+    for (const [u,v,wt] of edges) {
+        if (u>=0 && u<n && v>=0 && v<n) {
+            w[u][v] = wt;
+            w[v][u] = wt;
         }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+    }
+    return w;
+}
 
-        let dataSize = 60;
-        let stepDelay = 200;
-        let isPlaying = false;
-        let currentAlgoKey = 'bubble';
-        let stats = { steps: 0, ops: 0 };
-        let currentAlgo = null;
+function resetStats() {
+    stats = { steps: 0, ops: 0 };
+    updateStats('Ready');
+}
+function updateStats(status) {
+    document.getElementById('stats').textContent =
+        'Steps: ' + stats.steps + ' | Ops: ' + stats.ops + ' | Status: ' + status;
+}
 
-        /* shared graph data */
-        let graphN = 5;
-        let graphEdges = [
-            [0,1,2],
-            [0,3,6],
-            [1,2,3],
-            [1,3,8],
-            [1,4,5],
-            [2,4,7],
-            [3,4,9]
-        ];
+function matrixToC(n, w) {
+    let rows = [];
+    for (let i=0;i<n;i++) {
+        rows.push("        {" + w[i].map(x=>x.toString()).join(", ") + "}");
+    }
+    return "{\n" + rows.join(",\n") + "\n    }";
+}
 
-        function buildAdjMatrix(n, edges) {
-            const w = Array.from({length:n}, () => Array(n).fill(0));
-            for (const [u,v,wt] of edges) {
-                if (u>=0 && u<n && v>=0 && v<n) {
-                    w[u][v] = wt;
-                    w[v][u] = wt;
-                }
-            }
-            return w;
-        }
-
-        function resetStats() {
-            stats = { steps: 0, ops: 0 };
-            updateStats('Ready');
-        }
-        function updateStats(status) {
-            document.getElementById('stats').textContent =
-                'Steps: ' + stats.steps + ' | Ops: ' + stats.ops + ' | Status: ' + status;
-        }
-
-        function matrixToC(n, w) {
-            let rows = [];
-            for (let i=0;i<n;i++) {
-                rows.push("        {" + w[i].map(x=>x.toString()).join(", ") + "}");
-            }
-            return "{\n" + rows.join(",\n") + "\n    }";
-        }
-
-        const C_TEMPLATES_BASE = {
+/* C templates for arrays and BST (unchanged) */
+const C_TEMPLATES_BASE = {
 "bubble": `#include <stdio.h>
 
 int main() {
@@ -342,13 +343,13 @@ int main() {
     return 0;
 }
 `
-        };
+};
 
-        function getGraphCTemplate(kind) {
-            const w = buildAdjMatrix(graphN, graphEdges);
-            const mat = matrixToC(graphN, w);
-            if (kind === 'bfs') {
-                return `#include <stdio.h>
+function getGraphCTemplate(kind) {
+    const w = buildAdjMatrix(graphN, graphEdges);
+    const mat = matrixToC(graphN, w);
+    if (kind === 'bfs') {
+        return `#include <stdio.h>
 
 int main() {
     int n = ${graphN};
@@ -374,9 +375,9 @@ int main() {
     return 0;
 }
 `;
-            }
-            if (kind === 'dfs') {
-                return `#include <stdio.h>
+    }
+    if (kind === 'dfs') {
+        return `#include <stdio.h>
 
 void dfs(int u, int n, int g[][${graphN}], int visited[]) {
     int v;
@@ -395,9 +396,9 @@ int main() {
     return 0;
 }
 `;
-            }
-            if (kind === 'prims') {
-                return `#include <stdio.h>
+    }
+    if (kind === 'prims') {
+        return `#include <stdio.h>
 #define INF 99999
 
 int main() {
@@ -428,9 +429,9 @@ int main() {
     return 0;
 }
 `;
-            }
-            if (kind === 'kruskal') {
-                return `#include <stdio.h>
+    }
+    if (kind === 'kruskal') {
+        return `#include <stdio.h>
 #define INF 99999
 
 int parent[${graphN}];
@@ -469,9 +470,9 @@ int main() {
     return 0;
 }
 `;
-            }
-            if (kind === 'dijkstra') {
-                return `#include <stdio.h>
+    }
+    if (kind === 'dijkstra') {
+        return `#include <stdio.h>
 #define INF 99999
 
 int main() {
@@ -504,834 +505,886 @@ int main() {
     return 0;
 }
 `;
+    }
+    return "";
+}
+
+/* visual algorithms with edge highlighting */
+
+const ALGORITHMS = {
+    /* array algorithms unchanged except stepDelay default above */
+    bubble: {
+        type: 'array',
+        init() {
+            this.arr = Array(dataSize).fill(0).map(
+                () => Math.random() * canvas.height * 0.75 + 10
+            );
+            this.i = 0;
+            this.j = 0;
+            this.done = false;
+            resetStats();
+        },
+        step() {
+            if (this.done) return;
+            if (this.i >= this.arr.length - 1) {
+                this.done = true;
+                return;
             }
-            return "";
+            if (this.j >= this.arr.length - this.i - 1) {
+                this.i++;
+                this.j = 0;
+                return;
+            }
+            stats.ops++;
+            if (this.arr[this.j] > this.arr[this.j+1]) {
+                const t = this.arr[this.j];
+                this.arr[this.j] = this.arr[this.j+1];
+                this.arr[this.j+1] = t;
+            }
+            this.j++;
+            stats.steps++;
+        },
+        draw() {
+            const w = canvas.width / this.arr.length;
+            for (let k = 0; k < this.arr.length; k++) {
+                let color = '#4fd0e3';
+                if (k === this.j || k === this.j+1) color = '#ff6b6b';
+                if (k >= this.arr.length - this.i) color = '#26de81';
+                ctx.fillStyle = color;
+                ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
+            }
         }
-
-        /* visual algorithms */
-
-        const ALGORITHMS = {
-            bubble: {
-                type: 'array',
-                init() {
-                    this.arr = Array(dataSize).fill(0).map(
-                        () => Math.random() * canvas.height * 0.75 + 10
-                    );
-                    this.i = 0;
-                    this.j = 0;
-                    this.done = false;
-                    resetStats();
-                },
-                step() {
-                    if (this.done) return;
-                    if (this.i >= this.arr.length - 1) {
-                        this.done = true;
-                        return;
-                    }
-                    if (this.j >= this.arr.length - this.i - 1) {
-                        this.i++;
-                        this.j = 0;
-                        return;
-                    }
-                    stats.ops++;
-                    if (this.arr[this.j] > this.arr[this.j+1]) {
-                        const t = this.arr[this.j];
-                        this.arr[this.j] = this.arr[this.j+1];
-                        this.arr[this.j+1] = t;
-                    }
-                    this.j++;
-                    stats.steps++;
-                },
-                draw() {
-                    const w = canvas.width / this.arr.length;
-                    for (let k = 0; k < this.arr.length; k++) {
-                        let color = '#4fd0e3';
-                        if (k === this.j || k === this.j+1) color = '#ff6b6b';
-                        if (k >= this.arr.length - this.i) color = '#26de81';
-                        ctx.fillStyle = color;
-                        ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
-                    }
-                }
-            },
-
-            selection: {
-                type: 'array',
-                init() {
-                    this.arr = Array(dataSize).fill(0).map(
-                        () => Math.random() * canvas.height * 0.75 + 10
-                    );
-                    this.i = 0;
-                    this.j = 1;
-                    this.minIdx = 0;
-                    this.done = false;
-                    resetStats();
-                },
-                step() {
-                    if (this.done) return;
-                    const n = this.arr.length;
-                    if (this.i >= n - 1) {
-                        this.done = true;
-                        return;
-                    }
-                    if (this.j < n) {
-                        stats.ops++;
-                        if (this.arr[this.j] < this.arr[this.minIdx]) this.minIdx = this.j;
-                        this.j++;
-                        stats.steps++;
-                    } else {
-                        const t = this.arr[this.i];
-                        this.arr[this.i] = this.arr[this.minIdx];
-                        this.arr[this.minIdx] = t;
-                        this.i++;
-                        this.minIdx = this.i;
-                        this.j = this.i + 1;
-                    }
-                },
-                draw() {
-                    const w = canvas.width / this.arr.length;
-                    for (let k = 0; k < this.arr.length; k++) {
-                        let color = '#4fd0e3';
-                        if (k === this.i) color = '#26de81';
-                        if (k === this.minIdx) color = '#ff6b6b';
-                        ctx.fillStyle = color;
-                        ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
-                    }
-                }
-            },
-
-            insertion: {
-                type: 'array',
-                init() {
-                    this.arr = Array(dataSize).fill(0).map(
-                        () => Math.random() * canvas.height * 0.75 + 10
-                    );
-                    this.i = 1;
-                    this.j = 0;
-                    this.done = false;
-                    resetStats();
-                },
-                step() {
-                    if (this.done) return;
-                    const n = this.arr.length;
-                    if (this.i >= n) {
-                        this.done = true;
-                        return;
-                    }
-                    if (this.j >= 0 && this.arr[this.j] > this.arr[this.j+1]) {
-                        const t = this.arr[this.j];
-                        this.arr[this.j] = this.arr[this.j+1];
-                        this.arr[this.j+1] = t;
-                        this.j--;
-                        stats.ops++;
-                        stats.steps++;
-                    } else {
-                        this.i++;
-                        this.j = this.i - 1;
-                    }
-                },
-                draw() {
-                    const w = canvas.width / this.arr.length;
-                    for (let k = 0; k < this.arr.length; k++) {
-                        let color = k < this.i ? '#26de81' : '#4fd0e3';
-                        if (k === this.j || k === this.j+1) color = '#ff6b6b';
-                        ctx.fillStyle = color;
-                        ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
-                    }
-                }
-            },
-
-            linear: {
-                type: 'array',
-                init() {
-                    this.arr = Array(dataSize).fill(0).map(
-                        () => Math.floor(Math.random() * 400) + 20
-                    );
-                    this.key = this.arr[Math.floor(Math.random()*this.arr.length)];
-                    this.i = 0;
-                    this.found = -1;
-                    this.done = false;
-                    resetStats();
-                },
-                step() {
-                    if (this.done) return;
-                    if (this.i >= this.arr.length) { this.done = true; return; }
-                    stats.ops++;
-                    if (this.arr[this.i] === this.key) {
-                        this.found = this.i;
-                        this.done = true;
-                    }
-                    this.i++;
-                    stats.steps++;
-                },
-                draw() {
-                    const w = canvas.width / this.arr.length;
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = '14px monospace';
-                    ctx.fillText('Key: ' + this.key, 10, 20);
-                    for (let k = 0; k < this.arr.length; k++) {
-                        const h = (this.arr[k] / 420) * (canvas.height * 0.6);
-                        let color = '#4fd0e3';
-                        if (k === this.i - 1) color = '#ff6b6b';
-                        if (k === this.found) color = '#26de81';
-                        ctx.fillStyle = color;
-                        ctx.fillRect(k * w, canvas.height - h, w - 1, h);
-                    }
-                }
-            },
-
-            binary: {
-                type: 'array',
-                init() {
-                    this.arr = Array(dataSize).fill(0).map(
-                        () => Math.floor(Math.random() * 400) + 20
-                    ).sort((a,b)=>a-b);
-                    this.key = this.arr[Math.floor(Math.random()*this.arr.length)];
-                    this.l = 0;
-                    this.r = this.arr.length - 1;
-                    this.mid = -1;
-                    this.found = -1;
-                    this.done = false;
-                    resetStats();
-                },
-                step() {
-                    if (this.done) return;
-                    if (this.l > this.r) { this.done = true; return; }
-                    this.mid = Math.floor((this.l + this.r) / 2);
-                    stats.ops++;
-                    const v = this.arr[this.mid];
-                    if (v === this.key) {
-                        this.found = this.mid;
-                        this.done = true;
-                    } else if (v < this.key) {
-                        this.l = this.mid + 1;
-                    } else {
-                        this.r = this.mid - 1;
-                    }
-                    stats.steps++;
-                },
-                draw() {
-                    const w = canvas.width / this.arr.length;
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = '14px monospace';
-                    ctx.fillText('Key: ' + this.key, 10, 20);
-                    for (let k = 0; k < this.arr.length; k++) {
-                        const h = (this.arr[k] / 420) * (canvas.height * 0.6);
-                        let color = '#4fd0e3';
-                        if (k >= this.l && k <= this.r) color = '#533483';
-                        if (k === this.mid) color = '#ff6b6b';
-                        if (k === this.found) color = '#26de81';
-                        ctx.fillStyle = color;
-                        ctx.fillRect(k * w, canvas.height - h, w - 1, h);
-                    }
-                }
-            },
-
-            bfs: {
-                type: 'graph',
-                init() {
-                    this.buildGraph();
-                    this.vis = Array(graphN).fill(false);
-                    this.queue = [0];
-                    this.vis[0] = true;
-                    this.order = [];
-                    this.done = false;
-                    resetStats();
-                },
-                buildGraph() {
-                    this.nodes = [];
-                    const R = Math.min(canvas.width, canvas.height) * 0.3;
-                    const cx = canvas.width/2, cy = canvas.height/2;
-                    for (let i=0;i<graphN;i++) {
-                        const angle = 2*Math.PI*i/graphN;
-                        this.nodes.push({x:cx+R*Math.cos(angle), y:cy+R*Math.sin(angle)});
-                    }
-                    this.w = buildAdjMatrix(graphN, graphEdges);
-                },
-                step() {
-                    if (this.done) return;
-                    if (this.queue.length === 0) { this.done=true; return; }
-                    const u = this.queue.shift();
-                    this.order.push(u);
-                    for (let v=0; v<graphN; v++) {
-                        if (this.w[u][v] && !this.vis[v]) {
-                            this.vis[v]=true;
-                            this.queue.push(v);
-                        }
-                    }
-                    stats.steps++;
-                },
-                draw() {
-                    ctx.clearRect(0,0,canvas.width,canvas.height);
-                    ctx.strokeStyle='#555';
-                    ctx.lineWidth=1;
-                    for (let i=0;i<graphN;i++) {
-                        for (let j=i+1;j<graphN;j++) {
-                            if (this.w[i][j]) {
-                                const a=this.nodes[i], b=this.nodes[j];
-                                ctx.beginPath();
-                                ctx.moveTo(a.x,a.y);
-                                ctx.lineTo(b.x,b.y);
-                                ctx.stroke();
-                                ctx.fillStyle='#fff';
-                                ctx.font='11px monospace';
-                                const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
-                                ctx.fillText(String(this.w[i][j]), mx, my-4);
-                            }
-                        }
-                    }
-                    for (let i=0;i<graphN;i++) {
-                        const n=this.nodes[i];
-                        let color='#4fd0e3';
-                        if (this.order.includes(i)) color='#26de81';
-                        ctx.beginPath();
-                        ctx.arc(n.x,n.y,18,0,Math.PI*2);
-                        ctx.fillStyle=color;
-                        ctx.fill();
-                        ctx.strokeStyle='#fff';
-                        ctx.lineWidth=2;
-                        ctx.stroke();
-                        ctx.fillStyle='#000';
-                        ctx.textAlign='center';
-                        ctx.textBaseline='middle';
-                        ctx.font='12px monospace';
-                        ctx.fillText(String(i), n.x, n.y);
-                    }
-                }
-            },
-
-            dfs: {
-                type: 'graph',
-                init() {
-                    this.buildGraph();
-                    this.vis = Array(graphN).fill(false);
-                    this.stack = [0];
-                    this.order = [];
-                    this.done = false;
-                    resetStats();
-                },
-                buildGraph() {
-                    this.nodes = [];
-                    const R = Math.min(canvas.width, canvas.height) * 0.3;
-                    const cx = canvas.width/2, cy = canvas.height/2;
-                    for (let i=0;i<graphN;i++) {
-                        const angle = 2*Math.PI*i/graphN;
-                        this.nodes.push({x:cx+R*Math.cos(angle), y:cy+R*Math.sin(angle)});
-                    }
-                    this.w = buildAdjMatrix(graphN, graphEdges);
-                },
-                step() {
-                    if (this.done) return;
-                    if (this.stack.length === 0) { this.done=true; return; }
-                    const u = this.stack.pop();
-                    if (!this.vis[u]) {
-                        this.vis[u] = true;
-                        this.order.push(u);
-                        const neighbors = [];
-                        for (let v=0; v<graphN; v++) if (this.w[u][v]) neighbors.push(v);
-                        neighbors.reverse();
-                        for (const v of neighbors) {
-                            if (!this.vis[v]) this.stack.push(v);
-                        }
-                        stats.steps++;
-                    }
-                },
-                draw() {
-                    ctx.clearRect(0,0,canvas.width,canvas.height);
-                    ctx.strokeStyle='#555';
-                    ctx.lineWidth=1;
-                    for (let i=0;i<graphN;i++) {
-                        for (let j=i+1;j<graphN;j++) {
-                            if (this.w[i][j]) {
-                                const a=this.nodes[i], b=this.nodes[j];
-                                ctx.beginPath();
-                                ctx.moveTo(a.x,a.y);
-                                ctx.lineTo(b.x,b.y);
-                                ctx.stroke();
-                                ctx.fillStyle='#fff';
-                                ctx.font='11px monospace';
-                                const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
-                                ctx.fillText(String(this.w[i][j]), mx, my-4);
-                            }
-                        }
-                    }
-                    for (let i=0;i<graphN;i++) {
-                        const n=this.nodes[i];
-                        let color='#4fd0e3';
-                        if (this.order.includes(i)) color='#26de81';
-                        ctx.beginPath();
-                        ctx.arc(n.x,n.y,18,0,Math.PI*2);
-                        ctx.fillStyle=color;
-                        ctx.fill();
-                        ctx.strokeStyle='#fff';
-                        ctx.lineWidth=2;
-                        ctx.stroke();
-                        ctx.fillStyle='#000';
-                        ctx.textAlign='center';
-                        ctx.textBaseline='middle';
-                        ctx.font='12px monospace';
-                        ctx.fillText(String(i), n.x, n.y);
-                    }
-                }
-            },
-
-            prims: {
-                type: 'graph',
-                init() {
-                    this.buildGraph();
-                    const n = graphN;
-                    this.inMst = Array(n).fill(false);
-                    this.inMst[0] = true;
-                    this.edges = [];
-                    this.done = false;
-                    resetStats();
-                },
-                buildGraph() {
-                    this.nodes = [];
-                    const R = Math.min(canvas.width, canvas.height) * 0.3;
-                    const cx = canvas.width/2, cy = canvas.height/2;
-                    for (let i=0;i<graphN;i++) {
-                        const angle = 2*Math.PI*i/graphN;
-                        this.nodes.push({x:cx+R*Math.cos(angle), y:cy+R*Math.sin(angle)});
-                    }
-                    this.w = buildAdjMatrix(graphN, graphEdges);
-                },
-                step() {
-                    if (this.done) return;
-                    const n = graphN;
-                    if (this.edges.length >= n-1) { this.done = true; return; }
-                    let min = Infinity, a=-1, b=-1;
-                    for (let i=0;i<n;i++) if (this.inMst[i]) {
-                        for (let j=0;j<n;j++) if (!this.inMst[j] && this.w[i][j]>0) {
-                            if (this.w[i][j] < min) { min=this.w[i][j]; a=i; b=j; }
-                        }
-                    }
-                    if (a===-1) { this.done=true; return; }
-                    this.inMst[b] = true;
-                    this.edges.push([a,b]);
-                    stats.steps++;
-                },
-                draw() {
-                    ctx.clearRect(0,0,canvas.width,canvas.height);
-                    ctx.strokeStyle='#555';
-                    ctx.lineWidth=1;
-                    const n = graphN;
-                    for (let i=0;i<n;i++) {
-                        for (let j=i+1;j<n;j++) {
-                            if (this.w[i][j]) {
-                                const a=this.nodes[i], b=this.nodes[j];
-                                ctx.beginPath();
-                                ctx.moveTo(a.x,a.y);
-                                ctx.lineTo(b.x,b.y);
-                                ctx.stroke();
-                                ctx.fillStyle='#fff';
-                                ctx.font='11px monospace';
-                                const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
-                                ctx.fillText(String(this.w[i][j]), mx, my-4);
-                            }
-                        }
-                    }
-                    ctx.strokeStyle='#26de81';
-                    ctx.lineWidth=3;
-                    for (const e of this.edges) {
-                        const a=this.nodes[e[0]], b=this.nodes[e[1]];
-                        ctx.beginPath();
-                        ctx.moveTo(a.x,a.y);
-                        ctx.lineTo(b.x,b.y);
-                        ctx.stroke();
-                    }
-                    for (let i=0;i<n;i++) {
-                        const node=this.nodes[i];
-                        let color=this.inMst[i]?'#26de81':'#4fd0e3';
-                        ctx.beginPath();
-                        ctx.arc(node.x,node.y,18,0,Math.PI*2);
-                        ctx.fillStyle=color;
-                        ctx.fill();
-                        ctx.strokeStyle='#fff';
-                        ctx.lineWidth=2;
-                        ctx.stroke();
-                        ctx.fillStyle='#000';
-                        ctx.font='12px monospace';
-                        ctx.textAlign='center';
-                        ctx.textBaseline='middle';
-                        ctx.fillText(String(i),node.x,node.y);
-                    }
-                }
-            },
-
-            kruskal: {
-                type: 'graph',
-                init() {
-                    this.buildGraph();
-                    const n = graphN;
-                    this.parent = [];
-                    for (let i=0;i<n;i++) this.parent[i]=i;
-                    this.edgesList = [];
-                    for (let i=0;i<n;i++) {
-                        for (let j=i+1;j<n;j++) {
-                            if (this.w[i][j]>0) this.edgesList.push({u:i,v:j,w:this.w[i][j]});
-                        }
-                    }
-                    this.edgesList.sort((a,b)=>a.w-b.w);
-                    this.mstEdges = [];
-                    this.idx = 0;
-                    this.done = false;
-                    resetStats();
-                },
-                buildGraph() {
-                    this.nodes = [];
-                    const R = Math.min(canvas.width, canvas.height) * 0.3;
-                    const cx = canvas.width/2, cy = canvas.height/2;
-                    for (let i=0;i<graphN;i++) {
-                        const angle = 2*Math.PI*i/graphN;
-                        this.nodes.push({x:cx+R*Math.cos(angle), y:cy+R*Math.sin(angle)});
-                    }
-                    this.w = buildAdjMatrix(graphN, graphEdges);
-                },
-                find(x){ while (this.parent[x]!==x) x=this.parent[x]; return x; },
-                unite(a,b){ this.parent[a]=b; },
-                step() {
-                    if (this.done) return;
-                    const n = graphN;
-                    if (this.mstEdges.length>=n-1 || this.idx>=this.edgesList.length) {
-                        this.done=true; return;
-                    }
-                    const e = this.edgesList[this.idx++];
-                    const u = this.find(e.u), v=this.find(e.v);
-                    if (u!==v) {
-                        this.unite(u,v);
-                        this.mstEdges.push([e.u,e.v]);
-                        stats.steps++;
-                    }
-                },
-                draw() {
-                    ctx.clearRect(0,0,canvas.width,canvas.height);
-                    ctx.strokeStyle='#555';
-                    ctx.lineWidth=1;
-                    const n = graphN;
-                    for (let i=0;i<n;i++) {
-                        for (let j=i+1;j<n;j++) {
-                            if (this.w[i][j]) {
-                                const a=this.nodes[i], b=this.nodes[j];
-                                ctx.beginPath();
-                                ctx.moveTo(a.x,a.y);
-                                ctx.lineTo(b.x,b.y);
-                                ctx.stroke();
-                                ctx.fillStyle='#fff';
-                                ctx.font='11px monospace';
-                                const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
-                                ctx.fillText(String(this.w[i][j]), mx, my-4);
-                            }
-                        }
-                    }
-                    ctx.strokeStyle='#26de81';
-                    ctx.lineWidth=3;
-                    for (const e of this.mstEdges) {
-                        const a=this.nodes[e[0]], b=this.nodes[e[1]];
-                        ctx.beginPath();
-                        ctx.moveTo(a.x,a.y);
-                        ctx.lineTo(b.x,b.y);
-                        ctx.stroke();
-                    }
-                    for (let i=0;i<n;i++) {
-                        const node=this.nodes[i];
-                        ctx.beginPath();
-                        ctx.arc(node.x,node.y,18,0,Math.PI*2);
-                        ctx.fillStyle='#4fd0e3';
-                        ctx.fill();
-                        ctx.strokeStyle='#fff';
-                        ctx.lineWidth=2;
-                        ctx.stroke();
-                        ctx.fillStyle='#000';
-                        ctx.font='12px monospace';
-                        ctx.textAlign='center';
-                        ctx.textBaseline='middle';
-                        ctx.fillText(String(i),node.x,node.y);
-                    }
-                }
-            },
-
-            dijkstra: {
-                type: 'graph',
-                init() {
-                    this.buildGraph();
-                    const n = graphN;
-                    this.dist = Array(n).fill(Infinity);
-                    this.vis = Array(n).fill(false);
-                    this.dist[0]=0;
-                    this.done=false;
-                    resetStats();
-                },
-                buildGraph() {
-                    this.nodes = [];
-                    const R = Math.min(canvas.width, canvas.height) * 0.3;
-                    const cx = canvas.width/2, cy = canvas.height/2;
-                    for (let i=0;i<graphN;i++) {
-                        const angle = 2*Math.PI*i/graphN;
-                        this.nodes.push({x:cx+R*Math.cos(angle), y:cy+R*Math.sin(angle)});
-                    }
-                    this.w = buildAdjMatrix(graphN, graphEdges);
-                },
-                step() {
-                    if (this.done) return;
-                    const n = graphN;
-                    let u=-1, best=Infinity;
-                    for (let i=0;i<n;i++) {
-                        if (!this.vis[i] && this.dist[i]<best) {
-                            best=this.dist[i]; u=i;
-                        }
-                    }
-                    if (u===-1) { this.done=true; return; }
-                    this.vis[u]=true;
-                    for (let v=0; v<n; v++) {
-                        if (this.w[u][v] && this.dist[u]+this.w[u][v]<this.dist[v]) {
-                            this.dist[v]=this.dist[u]+this.w[u][v];
-                        }
-                    }
-                    stats.steps++;
-                },
-                draw() {
-                    ctx.clearRect(0,0,canvas.width,canvas.height);
-                    ctx.strokeStyle='#555';
-                    ctx.lineWidth=1;
-                    const n = graphN;
-                    for (let i=0;i<n;i++) {
-                        for (let j=i+1;j<n;j++) {
-                            if (this.w[i][j]) {
-                                const a=this.nodes[i], b=this.nodes[j];
-                                ctx.beginPath();
-                                ctx.moveTo(a.x,a.y);
-                                ctx.lineTo(b.x,b.y);
-                                ctx.stroke();
-                                ctx.fillStyle='#fff';
-                                ctx.font='11px monospace';
-                                const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
-                                ctx.fillText(String(this.w[i][j]), mx, my-4);
-                            }
-                        }
-                    }
-                    for (let i=0;i<n;i++) {
-                        const node=this.nodes[i];
-                        ctx.beginPath();
-                        ctx.arc(node.x,node.y,18,0,Math.PI*2);
-                        ctx.fillStyle=this.vis[i]?'#26de81':'#4fd0e3';
-                        ctx.fill();
-                        ctx.strokeStyle='#fff';
-                        ctx.lineWidth=2;
-                        ctx.stroke();
-                        ctx.fillStyle='#000';
-                        ctx.font='11px monospace';
-                        ctx.textAlign='center';
-                        ctx.textBaseline='middle';
-                        ctx.fillText(i+":"+(this.dist[i]===Infinity?'inf':this.dist[i]),node.x,node.y);
-                    }
-                }
-            },
-
-            bst: {
-                type: 'tree',
-                init() {
-                    this.values = [];
-                    for (let i=0;i<7;i++) this.values.push(Math.floor(Math.random()*80)+10);
-                    this.root=null;
-                    this.insertIndex=0;
-                    this.done=false;
-                    resetStats();
-                },
-                insertVal(v) {
-                    if (!this.root) {
-                        this.root={val:v,x:canvas.width/2,y:80,left:null,right:null};
-                        return;
-                    }
-                    let node=this.root;
-                    while (true) {
-                        stats.ops++;
-                        if (v < node.val) {
-                            if (!node.left) {
-                                node.left={val:v,x:node.x-70,y:node.y+70,left:null,right:null};
-                                return;
-                            }
-                            node=node.left;
-                        } else {
-                            if (!node.right) {
-                                node.right={val:v,x:node.x+70,y:node.y+70,left:null,right:null};
-                                return;
-                            }
-                            node=node.right;
-                        }
-                    }
-                },
-                step() {
-                    if (this.done) return;
-                    if (this.insertIndex >= this.values.length) { this.done=true; return; }
-                    this.insertVal(this.values[this.insertIndex]);
-                    this.insertIndex++;
-                    stats.steps++;
-                },
-                drawEdges(node) {
-                    if (!node) return;
-                    if (node.left) {
-                        ctx.strokeStyle='#4fd0e3';
-                        ctx.lineWidth=2;
-                        ctx.beginPath();
-                        ctx.moveTo(node.x,node.y+18);
-                        ctx.lineTo(node.left.x,node.left.y-18);
-                        ctx.stroke();
-                    }
-                    if (node.right) {
-                        ctx.strokeStyle='#4fd0e3';
-                        ctx.lineWidth=2;
-                        ctx.beginPath();
-                        ctx.moveTo(node.x,node.y+18);
-                        ctx.lineTo(node.right.x,node.right.y-18);
-                        ctx.stroke();
-                    }
-                    this.drawEdges(node.left);
-                    this.drawEdges(node.right);
-                },
-                drawNodes(node) {
-                    if (!node) return;
-                    this.drawNodes(node.left);
-                    this.drawNodes(node.right);
-                    ctx.beginPath();
-                    ctx.arc(node.x,node.y,18,0,Math.PI*2);
-                    ctx.fillStyle='#26de81';
-                    ctx.fill();
-                    ctx.strokeStyle='#fff';
-                    ctx.lineWidth=2;
-                    ctx.stroke();
-                    ctx.fillStyle='#000';
-                    ctx.font='12px monospace';
-                    ctx.textAlign='center';
-                    ctx.textBaseline='middle';
-                    ctx.fillText(String(node.val),node.x,node.y);
-                },
-                draw() {
-                    ctx.clearRect(0,0,canvas.width,canvas.height);
-                    if (!this.root) return;
-                    this.drawEdges(this.root);
-                    this.drawNodes(this.root);
-                }
+    },
+    selection: {
+        type: 'array',
+        init() {
+            this.arr = Array(dataSize).fill(0).map(
+                () => Math.random() * canvas.height * 0.75 + 10
+            );
+            this.i = 0;
+            this.j = 1;
+            this.minIdx = 0;
+            this.done = false;
+            resetStats();
+        },
+        step() {
+            if (this.done) return;
+            const n = this.arr.length;
+            if (this.i >= n - 1) {
+                this.done = true;
+                return;
             }
-        };
-
-        function createAlgoInstance(key) {
-            const base = ALGORITHMS[key];
-            const copy = {};
-            for (const k in base) {
-                if (typeof base[k] === 'function') copy[k] = base[k].bind(copy);
-                else copy[k] = JSON.parse(JSON.stringify(base[k]));
-            }
-            return copy;
-        }
-
-        function selectAlgo(key) {
-            currentAlgoKey = key;
-            document.querySelectorAll('#sidebar button').forEach(b => {
-                if (b.id.startsWith('btn-')) b.classList.remove('active');
-            });
-            const btn = document.getElementById('btn-' + key);
-            if (btn) btn.classList.add('active');
-            currentAlgo = createAlgoInstance(key);
-            currentAlgo.init();
-            updateStats('Ready');
-
-            const titleMap = {
-                bubble:'Bubble sort', selection:'Selection sort', insertion:'Insertion sort',
-                linear:'Linear search', binary:'Binary search',
-                bfs:'BFS', dfs:'DFS', prims:'Prim', kruskal:'Kruskal', dijkstra:'Dijkstra',
-                bst:'BST insert'
-            };
-            document.getElementById('editor-title').textContent = 'C code: ' + (titleMap[key] || key);
-            if (['bfs','dfs','prims','kruskal','dijkstra'].includes(key)) {
-                document.getElementById('editor').value = getGraphCTemplate(key);
+            if (this.j < n) {
+                stats.ops++;
+                if (this.arr[this.j] < this.arr[this.minIdx]) this.minIdx = this.j;
+                this.j++;
+                stats.steps++;
             } else {
-                document.getElementById('editor').value = C_TEMPLATES_BASE[key] || '';
+                const t = this.arr[this.i];
+                this.arr[this.i] = this.arr[this.minIdx];
+                this.arr[this.minIdx] = t;
+                this.i++;
+                this.minIdx = this.i;
+                this.j = this.i + 1;
+            }
+        },
+        draw() {
+            const w = canvas.width / this.arr.length;
+            for (let k = 0; k < this.arr.length; k++) {
+                let color = '#4fd0e3';
+                if (k === this.i) color = '#26de81';
+                if (k === this.minIdx) color = '#ff6b6b';
+                ctx.fillStyle = color;
+                ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
             }
         }
-
-        function togglePlay() {
-            isPlaying = !isPlaying;
-            document.getElementById('play-btn').textContent = isPlaying ? 'Pause' : 'Play';
+    },
+    insertion: {
+        type: 'array',
+        init() {
+            this.arr = Array(dataSize).fill(0).map(
+                () => Math.random() * canvas.height * 0.75 + 10
+            );
+            this.i = 1;
+            this.j = 0;
+            this.done = false;
+            resetStats();
+        },
+        step() {
+            if (this.done) return;
+            const n = this.arr.length;
+            if (this.i >= n) {
+                this.done = true;
+                return;
+            }
+            if (this.j >= 0 && this.arr[this.j] > this.arr[this.j+1]) {
+                const t = this.arr[this.j];
+                this.arr[this.j] = this.arr[this.j+1];
+                this.arr[this.j+1] = t;
+                this.j--;
+                stats.ops++;
+                stats.steps++;
+            } else {
+                this.i++;
+                this.j = this.i - 1;
+            }
+        },
+        draw() {
+            const w = canvas.width / this.arr.length;
+            for (let k = 0; k < this.arr.length; k++) {
+                let color = k < this.i ? '#26de81' : '#4fd0e3';
+                if (k === this.j || k === this.j+1) color = '#ff6b6b';
+                ctx.fillStyle = color;
+                ctx.fillRect(k * w, canvas.height - this.arr[k], w - 1, this.arr[k]);
+            }
         }
-
-        function doStep() {
-            if (!currentAlgo) return;
-            currentAlgo.step();
-            updateStats(currentAlgo.done ? 'Done' : 'Stepping');
+    },
+    linear: {
+        type: 'array',
+        init() {
+            this.arr = Array(dataSize).fill(0).map(
+                () => Math.floor(Math.random() * 400) + 20
+            );
+            this.key = this.arr[Math.floor(Math.random()*this.arr.length)];
+            this.i = 0;
+            this.found = -1;
+            this.done = false;
+            resetStats();
+        },
+        step() {
+            if (this.done) return;
+            if (this.i >= this.arr.length) { this.done = true; return; }
+            stats.ops++;
+            if (this.arr[this.i] === this.key) {
+                this.found = this.i;
+                this.done = true;
+            }
+            this.i++;
+            stats.steps++;
+        },
+        draw() {
+            const w = canvas.width / this.arr.length;
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '14px monospace';
+            ctx.fillText('Key: ' + this.key, 10, 20);
+            for (let k = 0; k < this.arr.length; k++) {
+                const h = (this.arr[k] / 420) * (canvas.height * 0.6);
+                let color = '#4fd0e3';
+                if (k === this.i - 1) color = '#ff6b6b';
+                if (k === this.found) color = '#26de81';
+                ctx.fillStyle = color;
+                ctx.fillRect(k * w, canvas.height - h, w - 1, h);
+            }
         }
-
-        function resetAlgo() {
-            if (!currentAlgoKey) return;
-            currentAlgo = createAlgoInstance(currentAlgoKey);
-            currentAlgo.init();
-            isPlaying = false;
-            document.getElementById('play-btn').textContent = 'Play';
+    },
+    binary: {
+        type: 'array',
+        init() {
+            this.arr = Array(dataSize).fill(0).map(
+                () => Math.floor(Math.random() * 400) + 20
+            ).sort((a,b)=>a-b);
+            this.key = this.arr[Math.floor(Math.random()*this.arr.length)];
+            this.l = 0;
+            this.r = this.arr.length - 1;
+            this.mid = -1;
+            this.found = -1;
+            this.done = false;
+            resetStats();
+        },
+        step() {
+            if (this.done) return;
+            if (this.l > this.r) { this.done = true; return; }
+            this.mid = Math.floor((this.l + this.r) / 2);
+            stats.ops++;
+            const v = this.arr[this.mid];
+            if (v === this.key) {
+                this.found = this.mid;
+                this.done = true;
+            } else if (v < this.key) {
+                this.l = this.mid + 1;
+            } else {
+                this.r = this.mid - 1;
+            }
+            stats.steps++;
+        },
+        draw() {
+            const w = canvas.width / this.arr.length;
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '14px monospace';
+            ctx.fillText('Key: ' + this.key, 10, 20);
+            for (let k = 0; k < this.arr.length; k++) {
+                const h = (this.arr[k] / 420) * (canvas.height * 0.6);
+                let color = '#4fd0e3';
+                if (k >= this.l && k <= this.r) color = '#533483';
+                if (k === this.mid) color = '#ff6b6b';
+                if (k === this.found) color = '#26de81';
+                ctx.fillStyle = color;
+                ctx.fillRect(k * w, canvas.height - h, w - 1, h);
+            }
         }
+    },
 
-        function updateSpeed(v) {
-            stepDelay = parseInt(v,10);
-            document.getElementById('speedVal').textContent = v;
-        }
-
-        function updateSize(v) {
-            dataSize = parseInt(v,10);
-            document.getElementById('sizeVal').textContent = v;
-            if (ALGORITHMS[currentAlgoKey].type === 'array') resetAlgo();
-        }
-
-        function applyGraph() {
-            const nVal = parseInt(document.getElementById('graph-n').value,10);
-            if (!Number.isInteger(nVal) || nVal<2 || nVal>10) return;
-            const txt = document.getElementById('graph-edges').value.trim();
-            const lines = txt.split(/\n+/);
-            const edges = [];
-            for (const line of lines) {
-                const parts = line.trim().split(/\s+/);
-                if (parts.length >= 2) {
-                    const u = parseInt(parts[0],10);
-                    const v = parseInt(parts[1],10);
-                    const w = parts.length>=3 ? parseInt(parts[2],10) : 1;
-                    if (Number.isInteger(u) && Number.isInteger(v) && Number.isInteger(w)) {
-                        edges.push([u,v,w]);
-                    }
+    bfs: {
+        type: 'graph',
+        init() {
+            this.buildGraph();
+            this.vis = Array(graphN).fill(false);
+            this.queue = [0];
+            this.vis[0] = true;
+            this.order = [];
+            this.currentEdge = null;
+            this.done = false;
+            resetStats();
+        },
+        buildGraph() {
+            this.nodes = [];
+            const R = Math.min(canvas.width, canvas.height) * 0.3;
+            const cx = canvas.width/2, cy = canvas.height/2;
+            for (let i=0;i<graphN;i++) {
+                const angle = 2*Math.PI*i/graphN;
+                this.nodes.push({x:cx+R*Math.cos(angle), y:cy+R*Math.sin(angle)});
+            }
+            this.w = buildAdjMatrix(graphN, graphEdges);
+        },
+        step() {
+            if (this.done) return;
+            if (this.queue.length === 0) { this.done=true; return; }
+            const u = this.queue.shift();
+            this.order.push(u);
+            this.currentEdge = null;
+            for (let v=0; v<graphN; v++) {
+                if (this.w[u][v] && !this.vis[v]) {
+                    this.currentEdge = [u,v];   // highlight this edge
+                    this.vis[v]=true;
+                    this.queue.push(v);
+                    break;      // one edge per step for clear animation
                 }
             }
-            graphN = nVal;
-            graphEdges = edges;
-            if (['bfs','dfs','prims','kruskal','dijkstra'].includes(currentAlgoKey)) {
-                resetAlgo();
-                currentAlgo = createAlgoInstance(currentAlgoKey);
-                currentAlgo.init();
-                document.getElementById('editor').value = getGraphCTemplate(currentAlgoKey);
-            }
-        }
-
-        function toggleEditor() {
-            const cont = document.getElementById('editor-container');
-            const arrow = document.getElementById('editor-toggle-arrow');
-            if (cont.classList.contains('minimized')) {
-                cont.classList.remove('minimized');
-                arrow.textContent = '▼';
-            } else {
-                cont.classList.add('minimized');
-                arrow.textContent = '▶';
-            }
-        }
-
-        document.getElementById('editor-header').addEventListener('click', toggleEditor);
-
-        function animateLoop() {
+            stats.steps++;
+        },
+        draw() {
             ctx.clearRect(0,0,canvas.width,canvas.height);
-            if (currentAlgo && currentAlgo.draw) currentAlgo.draw();
-            if (isPlaying && currentAlgo && !currentAlgo.done) {
-                currentAlgo.step();
-                updateStats(currentAlgo.done ? 'Done' : 'Running');
+            ctx.lineWidth=1;
+            // draw all edges
+            for (let i=0;i<graphN;i++) {
+                for (let j=i+1;j<graphN;j++) {
+                    if (this.w[i][j]) {
+                        const a=this.nodes[i], b=this.nodes[j];
+                        ctx.beginPath();
+                        ctx.moveTo(a.x,a.y);
+                        ctx.lineTo(b.x,b.y);
+                        // highlight if currentEdge
+                        if (this.currentEdge &&
+                            ((this.currentEdge[0]===i && this.currentEdge[1]===j) ||
+                             (this.currentEdge[0]===j && this.currentEdge[1]===i))) {
+                            ctx.strokeStyle='#ff6b6b';
+                            ctx.lineWidth=3;
+                        } else {
+                            ctx.strokeStyle='#555';
+                            ctx.lineWidth=1;
+                        }
+                        ctx.stroke();
+                        ctx.fillStyle='#fff';
+                        ctx.font='11px monospace';
+                        const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+                        ctx.fillText(String(this.w[i][j]), mx, my-4);
+                    }
+                }
             }
-            setTimeout(() => requestAnimationFrame(animateLoop), stepDelay);
+            // nodes
+            for (let i=0;i<graphN;i++) {
+                const n=this.nodes[i];
+                let color='#4fd0e3';
+                if (this.order.includes(i)) color='#26de81';
+                ctx.beginPath();
+                ctx.arc(n.x,n.y,18,0,Math.PI*2);
+                ctx.fillStyle=color;
+                ctx.fill();
+                ctx.strokeStyle='#fff';
+                ctx.lineWidth=2;
+                ctx.stroke();
+                ctx.fillStyle='#000';
+                ctx.textAlign='center';
+                ctx.textBaseline='middle';
+                ctx.font='12px monospace';
+                ctx.fillText(String(i), n.x, n.y);
+            }
         }
+    },
 
-        selectAlgo('bubble');
-        animateLoop();
-    </script>
+    dfs: {
+        type: 'graph',
+        init() {
+            this.buildGraph();
+            this.vis = Array(graphN).fill(false);
+            this.stack = [0];
+            this.order = [];
+            this.currentEdge = null;
+            this.done = false;
+            resetStats();
+        },
+        buildGraph() {
+            this.nodes = [];
+            const R = Math.min(canvas.width, canvas.height) * 0.3;
+            const cx = canvas.width/2, cy = canvas.height/2;
+            for (let i=0;i<graphN;i++) {
+                const angle = 2*Math.PI*i/graphN;
+                this.nodes.push({x:cx+R*Math.cos(angle), y:cy+R*Math.sin(angle)});
+            }
+            this.w = buildAdjMatrix(graphN, graphEdges);
+        },
+        step() {
+            if (this.done) return;
+            if (this.stack.length === 0) { this.done=true; return; }
+            const u = this.stack.pop();
+            if (!this.vis[u]) {
+                this.vis[u] = true;
+                this.order.push(u);
+                this.currentEdge = null;
+                const neighbors = [];
+                for (let v=0; v<graphN; v++) if (this.w[u][v]) neighbors.push(v);
+                neighbors.reverse();
+                for (const v of neighbors) {
+                    if (!this.vis[v]) {
+                        this.currentEdge = [u,v];
+                        this.stack.push(v);
+                        break;          // one edge per step
+                    }
+                }
+                stats.steps++;
+            }
+        },
+        draw() {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            ctx.lineWidth=1;
+            for (let i=0;i<graphN;i++) {
+                for (let j=i+1;j<graphN;j++) {
+                    if (this.w[i][j]) {
+                        const a=this.nodes[i], b=this.nodes[j];
+                        ctx.beginPath();
+                        ctx.moveTo(a.x,a.y);
+                        ctx.lineTo(b.x,b.y);
+                        if (this.currentEdge &&
+                            ((this.currentEdge[0]===i && this.currentEdge[1]===j) ||
+                             (this.currentEdge[0]===j && this.currentEdge[1]===i))) {
+                            ctx.strokeStyle='#ff6b6b';
+                            ctx.lineWidth=3;
+                        } else {
+                            ctx.strokeStyle='#555';
+                            ctx.lineWidth=1;
+                        }
+                        ctx.stroke();
+                        ctx.fillStyle='#fff';
+                        ctx.font='11px monospace';
+                        const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+                        ctx.fillText(String(this.w[i][j]), mx, my-4);
+                    }
+                }
+            }
+            for (let i=0;i<graphN;i++) {
+                const n=this.nodes[i];
+                let color='#4fd0e3';
+                if (this.order.includes(i)) color='#26de81';
+                ctx.beginPath();
+                ctx.arc(n.x,n.y,18,0,Math.PI*2);
+                ctx.fillStyle=color;
+                ctx.fill();
+                ctx.strokeStyle='#fff';
+                ctx.lineWidth=2;
+                ctx.stroke();
+                ctx.fillStyle='#000';
+                ctx.textAlign='center';
+                ctx.textBaseline='middle';
+                ctx.font='12px monospace';
+                ctx.fillText(String(i), n.x, n.y);
+            }
+        }
+    },
+
+    prims: {
+        type: 'graph',
+        init() {
+            this.buildGraph();
+            const n = graphN;
+            this.inMst = Array(n).fill(false);
+            this.inMst[0] = true;
+            this.edges = [];
+            this.currentEdge = null;
+            this.done = false;
+            resetStats();
+        },
+        buildGraph() {
+            this.nodes = [];
+            const R = Math.min(canvas.width, canvas.height) * 0.3;
+            const cx = canvas.width/2, cy = canvas.height/2;
+            for (let i=0;i<graphN;i++) {
+                const angle = 2*Math.PI*i/graphN;
+                this.nodes.push({x:cx+R*Math.cos(angle), y:cy+R*Math.sin(angle)});
+            }
+            this.w = buildAdjMatrix(graphN, graphEdges);
+        },
+        step() {
+            if (this.done) return;
+            const n = graphN;
+            if (this.edges.length >= n-1) { this.done = true; return; }
+            let min = Infinity, a=-1, b=-1;
+            this.currentEdge = null;
+            for (let i=0;i<n;i++) if (this.inMst[i]) {
+                for (let j=0;j<n;j++) if (!this.inMst[j] && this.w[i][j]>0) {
+                    if (this.w[i][j] < min) { min=this.w[i][j]; a=i; b=j; }
+                }
+            }
+            if (a===-1) { this.done=true; return; }
+            this.currentEdge = [a,b];
+            this.inMst[b] = true;
+            this.edges.push([a,b]);
+            stats.steps++;
+        },
+        draw() {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            ctx.lineWidth=1;
+            const n = graphN;
+            for (let i=0;i<n;i++) {
+                for (let j=i+1;j<n;j++) {
+                    if (this.w[i][j]) {
+                        const a=this.nodes[i], b=this.nodes[j];
+                        ctx.beginPath();
+                        ctx.moveTo(a.x,a.y);
+                        ctx.lineTo(b.x,b.y);
+                        if (this.currentEdge &&
+                            ((this.currentEdge[0]===i && this.currentEdge[1]===j) ||
+                             (this.currentEdge[0]===j && this.currentEdge[1]===i))) {
+                            ctx.strokeStyle='#ff6b6b';
+                            ctx.lineWidth=3;
+                        } else if (this.edges.some(e => (e[0]===i&&e[1]===j)||(e[0]===j&&e[1]===i))) {
+                            ctx.strokeStyle='#26de81';
+                            ctx.lineWidth=3;
+                        } else {
+                            ctx.strokeStyle='#555';
+                            ctx.lineWidth=1;
+                        }
+                        ctx.stroke();
+                        ctx.fillStyle='#fff';
+                        ctx.font='11px monospace';
+                        const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+                        ctx.fillText(String(this.w[i][j]), mx, my-4);
+                    }
+                }
+            }
+            for (let i=0;i<n;i++) {
+                const node=this.nodes[i];
+                let color=this.inMst[i]?'#26de81':'#4fd0e3';
+                ctx.beginPath();
+                ctx.arc(node.x,node.y,18,0,Math.PI*2);
+                ctx.fillStyle=color;
+                ctx.fill();
+                ctx.strokeStyle='#fff';
+                ctx.lineWidth=2;
+                ctx.stroke();
+                ctx.fillStyle='#000';
+                ctx.font='12px monospace';
+                ctx.textAlign='center';
+                ctx.textBaseline='middle';
+                ctx.fillText(String(i),node.x,node.y);
+            }
+        }
+    },
+
+    kruskal: {
+        type: 'graph',
+        init() {
+            this.buildGraph();
+            const n = graphN;
+            this.parent = [];
+            for (let i=0;i<n;i++) this.parent[i]=i;
+            this.edgesList = [];
+            for (let i=0;i<n;i++) {
+                for (let j=i+1;j<n;j++) {
+                    if (this.w[i][j]>0) this.edgesList.push({u:i,v:j,w:this.w[i][j]});
+                }
+            }
+            this.edgesList.sort((a,b)=>a.w-b.w);
+            this.mstEdges = [];
+            this.idx = 0;
+            this.currentEdge = null;
+            this.done = false;
+            resetStats();
+        },
+        buildGraph() {
+            this.nodes = [];
+            const R = Math.min(canvas.width, canvas.height) * 0.3;
+            const cx = canvas.width/2, cy = canvas.height/2;
+            for (let i=0;i<graphN;i++) {
+                const angle = 2*Math.PI*i/graphN;
+                this.nodes.push({x:cx+R*Math.cos(angle), y:cy+R*Math.sin(angle)});
+            }
+            this.w = buildAdjMatrix(graphN, graphEdges);
+        },
+        find(x){ while (this.parent[x]!==x) x=this.parent[x]; return x; },
+        unite(a,b){ this.parent[a]=b; },
+        step() {
+            if (this.done) return;
+            const n = graphN;
+            if (this.mstEdges.length>=n-1 || this.idx>=this.edgesList.length) {
+                this.done=true; return;
+            }
+            const e = this.edgesList[this.idx++];
+            this.currentEdge = [e.u,e.v];
+            const u = this.find(e.u), v=this.find(e.v);
+            if (u!==v) {
+                this.unite(u,v);
+                this.mstEdges.push([e.u,e.v]);
+                stats.steps++;
+            }
+        },
+        draw() {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            ctx.lineWidth=1;
+            const n = graphN;
+            for (let i=0;i<n;i++) {
+                for (let j=i+1;j<n;j++) {
+                    if (this.w[i][j]) {
+                        const a=this.nodes[i], b=this.nodes[j];
+                        ctx.beginPath();
+                        ctx.moveTo(a.x,a.y);
+                        ctx.lineTo(b.x,b.y);
+                        if (this.currentEdge &&
+                            ((this.currentEdge[0]===i && this.currentEdge[1]===j) ||
+                             (this.currentEdge[0]===j && this.currentEdge[1]===i))) {
+                            ctx.strokeStyle='#ff6b6b';
+                            ctx.lineWidth=3;
+                        } else if (this.mstEdges.some(e => (e[0]===i&&e[1]===j)||(e[0]===j&&e[1]===i))) {
+                            ctx.strokeStyle='#26de81';
+                            ctx.lineWidth=3;
+                        } else {
+                            ctx.strokeStyle='#555';
+                            ctx.lineWidth=1;
+                        }
+                        ctx.stroke();
+                        ctx.fillStyle='#fff';
+                        ctx.font='11px monospace';
+                        const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+                        ctx.fillText(String(this.w[i][j]), mx, my-4);
+                    }
+                }
+            }
+            for (let i=0;i<n;i++) {
+                const node=this.nodes[i];
+                ctx.beginPath();
+                ctx.arc(node.x,node.y,18,0,Math.PI*2);
+                ctx.fillStyle='#4fd0e3';
+                ctx.fill();
+                ctx.strokeStyle='#fff';
+                ctx.lineWidth=2;
+                ctx.stroke();
+                ctx.fillStyle='#000';
+                ctx.font='12px monospace';
+                ctx.textAlign='center';
+                ctx.textBaseline='middle';
+                ctx.fillText(String(i),node.x,node.y);
+            }
+        }
+    },
+
+    dijkstra: {
+        type: 'graph',
+        init() {
+            this.buildGraph();
+            const n = graphN;
+            this.dist = Array(n).fill(Infinity);
+            this.vis = Array(n).fill(false);
+            this.dist[0]=0;
+            this.currentEdge=null;
+            this.done=false;
+            resetStats();
+        },
+        buildGraph() {
+            this.nodes = [];
+            const R = Math.min(canvas.width, canvas.height) * 0.3;
+            const cx = canvas.width/2, cy = canvas.height/2;
+            for (let i=0;i<graphN;i++) {
+                const angle = 2*Math.PI*i/graphN;
+                this.nodes.push({x:cx+R*Math.cos(angle), y:cy+R*Math.sin(angle)});
+            }
+            this.w = buildAdjMatrix(graphN, graphEdges);
+        },
+        step() {
+            if (this.done) return;
+            const n = graphN;
+            let u=-1, best=Infinity;
+            for (let i=0;i<n;i++) {
+                if (!this.vis[i] && this.dist[i]<best) {
+                    best=this.dist[i]; u=i;
+                }
+            }
+            if (u===-1) { this.done=true; return; }
+            this.vis[u]=true;
+            this.currentEdge=null;
+            for (let v=0; v<n; v++) {
+                if (this.w[u][v] && this.dist[u]+this.w[u][v]<this.dist[v]) {
+                    this.dist[v]=this.dist[u]+this.w[u][v];
+                    this.currentEdge=[u,v];
+                    break;   // highlight one relaxation per step
+                }
+            }
+            stats.steps++;
+        },
+        draw() {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            ctx.lineWidth=1;
+            const n = graphN;
+            for (let i=0;i<n;i++) {
+                for (let j=i+1;j<n;j++) {
+                    if (this.w[i][j]) {
+                        const a=this.nodes[i], b=this.nodes[j];
+                        ctx.beginPath();
+                        ctx.moveTo(a.x,a.y);
+                        ctx.lineTo(b.x,b.y);
+                        if (this.currentEdge &&
+                            ((this.currentEdge[0]===i && this.currentEdge[1]===j) ||
+                             (this.currentEdge[0]===j && this.currentEdge[1]===i))) {
+                            ctx.strokeStyle='#ff6b6b';
+                            ctx.lineWidth=3;
+                        } else {
+                            ctx.strokeStyle='#555';
+                            ctx.lineWidth=1;
+                        }
+                        ctx.stroke();
+                        ctx.fillStyle='#fff';
+                        ctx.font='11px monospace';
+                        const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+                        ctx.fillText(String(this.w[i][j]), mx, my-4);
+                    }
+                }
+            }
+            for (let i=0;i<n;i++) {
+                const node=this.nodes[i];
+                ctx.beginPath();
+                ctx.arc(node.x,node.y,18,0,Math.PI*2);
+                ctx.fillStyle=this.vis[i]?'#26de81':'#4fd0e3';
+                ctx.fill();
+                ctx.strokeStyle='#fff';
+                ctx.lineWidth=2;
+                ctx.stroke();
+                ctx.fillStyle='#000';
+                ctx.font='11px monospace';
+                ctx.textAlign='center';
+                ctx.textBaseline='middle';
+                ctx.fillText(i+":"+(this.dist[i]===Infinity?'inf':this.dist[i]),node.x,node.y);
+            }
+        }
+    },
+
+    bst: {
+        type: 'tree',
+        init() {
+            this.values = [];
+            for (let i=0;i<7;i++) this.values.push(Math.floor(Math.random()*80)+10);
+            this.root=null;
+            this.insertIndex=0;
+            this.done=false;
+            resetStats();
+        },
+        insertVal(v) {
+            if (!this.root) {
+                this.root={val:v,x:canvas.width/2,y:80,left:null,right:null};
+                return;
+            }
+            let node=this.root;
+            while (true) {
+                stats.ops++;
+                if (v < node.val) {
+                    if (!node.left) {
+                        node.left={val:v,x:node.x-70,y:node.y+70,left:null,right:null};
+                        return;
+                    }
+                    node=node.left;
+                } else {
+                    if (!node.right) {
+                        node.right={val:v,x:node.x+70,y:node.y+70,left:null,right:null};
+                        return;
+                    }
+                    node=node.right;
+                }
+            }
+        },
+        step() {
+            if (this.done) return;
+            if (this.insertIndex >= this.values.length) { this.done=true; return; }
+            this.insertVal(this.values[this.insertIndex]);
+            this.insertIndex++;
+            stats.steps++;
+        },
+        drawEdges(node) {
+            if (!node) return;
+            if (node.left) {
+                ctx.strokeStyle='#4fd0e3';
+                ctx.lineWidth=2;
+                ctx.beginPath();
+                ctx.moveTo(node.x,node.y+18);
+                ctx.lineTo(node.left.x,node.left.y-18);
+                ctx.stroke();
+            }
+            if (node.right) {
+                ctx.strokeStyle='#4fd0e3';
+                ctx.lineWidth=2;
+                ctx.beginPath();
+                ctx.moveTo(node.x,node.y+18);
+                ctx.lineTo(node.right.x,node.right.y-18);
+                ctx.stroke();
+            }
+            this.drawEdges(node.left);
+            this.drawEdges(node.right);
+        },
+        drawNodes(node) {
+            if (!node) return;
+            this.drawNodes(node.left);
+            this.drawNodes(node.right);
+            ctx.beginPath();
+            ctx.arc(node.x,node.y,18,0,Math.PI*2);
+            ctx.fillStyle='#26de81';
+            ctx.fill();
+            ctx.strokeStyle='#fff';
+            ctx.lineWidth=2;
+            ctx.stroke();
+            ctx.fillStyle='#000';
+            ctx.font='12px monospace';
+            ctx.textAlign='center';
+            ctx.textBaseline='middle';
+            ctx.fillText(String(node.val),node.x,node.y);
+        },
+        draw() {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            if (!this.root) return;
+            this.drawEdges(this.root);
+            this.drawNodes(this.root);
+        }
+    }
+};
+
+/* instance management */
+
+function createAlgoInstance(key) {
+    const base = ALGORITHMS[key];
+    const copy = {};
+    for (const k in base) {
+        if (typeof base[k] === 'function') copy[k] = base[k].bind(copy);
+        else copy[k] = JSON.parse(JSON.stringify(base[k]));
+    }
+    return copy;
+}
+
+function selectAlgo(key) {
+    currentAlgoKey = key;
+    document.querySelectorAll('#sidebar button').forEach(b => {
+        if (b.id.startsWith('btn-')) b.classList.remove('active');
+    });
+    const btn = document.getElementById('btn-' + key);
+    if (btn) btn.classList.add('active');
+    currentAlgo = createAlgoInstance(key);
+    currentAlgo.init();
+    updateStats('Ready');
+
+    const titleMap = {
+        bubble:'Bubble sort', selection:'Selection sort', insertion:'Insertion sort',
+        linear:'Linear search', binary:'Binary search',
+        bfs:'BFS', dfs:'DFS', prims:'Prim', kruskal:'Kruskal', dijkstra:'Dijkstra',
+        bst:'BST insert'
+    };
+    document.getElementById('editor-title').textContent = 'C code: ' + (titleMap[key] || key);
+    if (['bfs','dfs','prims','kruskal','dijkstra'].includes(key)) {
+        document.getElementById('editor').value = getGraphCTemplate(key);
+    } else {
+        document.getElementById('editor').value = C_TEMPLATES_BASE[key] || '';
+    }
+}
+
+function togglePlay() {
+    isPlaying = !isPlaying;
+    document.getElementById('play-btn').textContent = isPlaying ? 'Pause' : 'Play';
+}
+function doStep() {
+    if (!currentAlgo) return;
+    currentAlgo.step();
+    updateStats(currentAlgo.done ? 'Done' : 'Stepping');
+}
+function resetAlgo() {
+    if (!currentAlgoKey) return;
+    currentAlgo = createAlgoInstance(currentAlgoKey);
+    currentAlgo.init();
+    isPlaying = false;
+    document.getElementById('play-btn').textContent = 'Play';
+}
+function updateSpeed(v) {
+    stepDelay = parseInt(v,10);
+    document.getElementById('speedVal').textContent = v;
+    document.getElementById('speed').value = v;
+}
+
+/* initial slider default to 700 */
+document.getElementById('speed').value = 700;
+document.getElementById('speedVal').textContent = '700';
+
+function updateSize(v) {
+    dataSize = parseInt(v,10);
+    document.getElementById('sizeVal').textContent = v;
+    if (ALGORITHMS[currentAlgoKey].type === 'array') resetAlgo();
+}
+
+/* graph maker */
+function applyGraph() {
+    const nVal = parseInt(document.getElementById('graph-n').value,10);
+    if (!Number.isInteger(nVal) || nVal<2 || nVal>10) return;
+    const txt = document.getElementById('graph-edges').value.trim();
+    const lines = txt.split(/\n+/);
+    const edges = [];
+    for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 2) {
+            const u = parseInt(parts[0],10);
+            const v = parseInt(parts[1],10);
+            const w = parts.length>=3 ? parseInt(parts[2],10) : 1;
+            if (Number.isInteger(u) && Number.isInteger(v) && Number.isInteger(w)) {
+                edges.push([u,v,w]);
+            }
+        }
+    }
+    graphN = nVal;
+    graphEdges = edges;
+    if (['bfs','dfs','prims','kruskal','dijkstra'].includes(currentAlgoKey)) {
+        currentAlgo = createAlgoInstance(currentAlgoKey);
+        currentAlgo.init();
+        document.getElementById('editor').value = getGraphCTemplate(currentAlgoKey);
+    }
+}
+
+/* editor arrow toggle */
+function toggleEditor() {
+    const cont = document.getElementById('editor-container');
+    const arrow = document.getElementById('editor-toggle-arrow');
+    if (cont.classList.contains('minimized')) {
+        cont.classList.remove('minimized');
+        arrow.textContent = '▼';
+    } else {
+        cont.classList.add('minimized');
+        arrow.textContent = '▶';
+    }
+}
+document.getElementById('editor-header').addEventListener('click', toggleEditor);
+
+/* main loop */
+function animateLoop() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if (currentAlgo && currentAlgo.draw) currentAlgo.draw();
+    if (isPlaying && currentAlgo && !currentAlgo.done) {
+        currentAlgo.step();
+        updateStats(currentAlgo.done ? 'Done' : 'Running');
+    }
+    setTimeout(() => requestAnimationFrame(animateLoop), stepDelay);
+}
+
+selectAlgo('bubble');
+animateLoop();
+</script>
 </body>
 </html>
